@@ -1,0 +1,22 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { discoverExtensions } from "../src/extension/discovery";
+import { createRegistry } from "../src/core/registry";
+import { executeTool } from "../src/core/executor";
+import { loadConfig } from "../src/config/config";
+import { memoryStore } from "../src/secrets/secrets";
+import { createFakeExtension } from "./helpers";
+import { PolicyError } from "../src/policy/policy";
+
+const home = join(tmpdir(), `omt-debug-${Date.now()}`);
+mkdirSync(home, { recursive: true });
+writeFileSync(join(home, "config.toml"), `[extensions.mysql.connections.iot-test]\nhost="h"\nport=3306\ndatabase="iot"\nusername="u"\nsecret="s"\ntls=true\n`, "utf8");
+createFakeExtension(home, { id: "mysql", tools: [{ name: "mysql.query", description: "q", risk: "read" }] });
+const config = loadConfig(home);
+const reg = createRegistry(discoverExtensions(home));
+const secrets = memoryStore({});
+const res = await executeTool({ config, reg, secrets }, "mysql.query", { connection: "nope" });
+console.log(JSON.stringify(res, null, 2));
+console.log("PolicyError instanceof same module:", PolicyError instanceof Function);
+rmSync(home, { recursive: true, force: true });

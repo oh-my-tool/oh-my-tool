@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.omt/
+.omt-test/
+.omt-test-home/
+CONTEXT.md
+AGENTS.md

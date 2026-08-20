@@ -1,0 +1,22 @@
+{
+  "name": "@oh-my-tool/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Oh My Tool CLI - local and enterprise tools for agents",
+  "bin": {
+    "omt": "./bin/omt.ts"
+  },
+  "files": [
+    "assets",
+    "bin",
+    "src"
+  ],
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "@oh-my-tool/sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "@oh-my-tool/sdk": "^0.1.0"
+  },
+  "license": "MIT"
+}

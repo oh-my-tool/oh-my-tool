@@ -1,0 +1,11 @@
+{
+  "name": "@oh-my-tool/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Oh My Tool extension SDK",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src"],
+  "license": "MIT"
+}
