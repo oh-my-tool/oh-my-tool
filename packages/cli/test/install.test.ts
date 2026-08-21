@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { installLocalExtension } from "../src/extension/install";
 import { discoverExtensions } from "../src/extension/discovery";
 import { ManifestError } from "../src/extension/manifest";
@@ -34,6 +34,21 @@ describe("installLocalExtension", () => {
     const found = discoverExtensions(home);
     expect(found.map((e) => e.id)).toContain("mysql");
     expect(found.find((e) => e.id === "mysql")!.version).toBe("0.2.0");
+  });
+
+  test("reinstall overwrites previously installed files", async () => {
+    await installLocalExtension(home, src);
+    const installedPath = join(home, "extensions", "mysql", "0.2.0", "src", "index.ts");
+    expect(readFileSync(installedPath, "utf8")).toContain("data: []");
+
+    // 更新源文件后重装，目标必须跟随
+    writeFileSync(
+      join(src, "src", "index.ts"),
+      'export default { handlers: { "mysql.query": async () => ({ data: { v: 2 } }) } };',
+      "utf8",
+    );
+    await installLocalExtension(home, src);
+    expect(readFileSync(installedPath, "utf8")).toContain("v: 2");
   });
 
   test("rejects an extension whose sdkVersion is incompatible", async () => {

@@ -14,6 +14,11 @@ export async function installLocalExtension(home: string, srcDir: string): Promi
   checkSdkCompatibility(manifest.sdkVersion);
   const target = join(home, "extensions", manifest.id, manifest.version);
   await mkdir(target, { recursive: true });
-  await cp(srcDir, target, { recursive: true, filter: (s: string) => !s.includes("node_modules") });
+  // 显式 force:true：Bun 的 fs.cp 在带 filter 时默认覆盖失效（重装不更新旧文件）
+  await cp(srcDir, target, {
+    recursive: true,
+    force: true,
+    filter: (s: string) => !s.includes("node_modules"),
+  });
   return { id: manifest.id, version: manifest.version, target };
 }

@@ -3,7 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { createFakeExtension } from "./helpers";
-import { runSearch, runDescribe, runCall, runExtensionList, runExtensionInstall, runSecretSet } from "../src/cli/commands";
+import {
+  runSearch,
+  runDescribe,
+  runCall,
+  runExtensionList,
+  runExtensionInstall,
+  runSecretSet,
+  runSecretList,
+  parseSecretNamesFromCmdkey,
+} from "../src/cli/commands";
 import { memoryStore } from "../src/secrets/secrets";
 import { homeDir } from "../src/cli/context";
 
@@ -64,6 +73,35 @@ describe("cli commands", () => {
     const res = await runSecretSet("mysql:prod", "pw", store);
     expect(res.ok).toBe(true);
     expect(await store.get("mysql:prod")).toBe("pw");
+  });
+
+  test("parseSecretNamesFromCmdkey extracts unique oh-my-tool names", () => {
+    const out = [
+      "目标: LegacyGeneric:target=oh-my-tool/mysql:aiot-test",
+      "目标: LegacyGeneric:target=oh-my-tool/redis:iot-test",
+      "目标: LegacyGeneric:target=git:http://gitlab.transsion-os.com",
+      "目标: LegacyGeneric:target=oh-my-tool/mysql:calendar",
+      "目标: LegacyGeneric:target=oh-my-tool/mysql:calendar",
+    ].join("\r\n");
+    expect(parseSecretNamesFromCmdkey(out)).toEqual([
+      "mysql:aiot-test",
+      "mysql:calendar",
+      "redis:iot-test",
+    ]);
+  });
+
+  test("runSecretList uses injected cmdkey exec without exposing values", async () => {
+    const exec = async () =>
+      "目标: LegacyGeneric:target=oh-my-tool/redis:iot-test\r\n目标: LegacyGeneric:target=oh-my-tool/mysql:aiot-test\r\n";
+    const res = await runSecretList(exec);
+    // 测试环境为 Windows 时走 cmdkey 分支；非 Windows 恒 supported=false
+    if (process.platform === "win32") {
+      expect(res.supported).toBe(true);
+      expect(res.names).toEqual(["mysql:aiot-test", "redis:iot-test"]);
+    } else {
+      expect(res.supported).toBe(false);
+      expect(res.names).toEqual([]);
+    }
   });
 
   test("extension install installs a local dir", async () => {

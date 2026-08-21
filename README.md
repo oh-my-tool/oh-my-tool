@@ -95,7 +95,8 @@ omt integrate                      安装或升级已检测 Agent 的 OMT Skill
 omt integrate status               查看集成状态
 omt integrate repair               修复损坏的 OMT 托管链接
 omt integrate uninstall            卸载 OMT 托管链接
-omt secret set <name>              从 stdin 写入凭据（Bun.secrets / Windows Credential Manager）
+omt secret set <name>              写入凭据：TTY 下交互隐藏输入，非 TTY 从 stdin 管道
+omt secret list                    列出凭据名（不显值；Windows 通过 cmdkey 枚举）
 omt --version
 ```
 
@@ -134,7 +135,9 @@ omt describe mysql.query
 omt call mysql.query connection=iot-test sql="SELECT id,status FROM device WHERE id=123"
 # 复杂 JSON 走 stdin（避免各种 shell 转义）
 '{"connection":"iot-test","sql":"SELECT id FROM device WHERE id = ?","params":[123]}' | omt call mysql.query --stdin
-# 写凭据（值从 stdin，不回显、不进 Git）
+# 写凭据：终端里直接执行会进入交互隐藏输入（不回显、不进 shell 历史）
+omt secret set mysql:iot-test
+# 脚本/CI 场景从 stdin 管道传入（管道值仍不进 Git）
 Write-Output "s3cret" | omt secret set mysql:iot-test
 ```
 
@@ -156,6 +159,8 @@ Agent 只能传 `connection` 名（如 `iot-test`），**禁止**传 `host/usern
 ## 凭据
 
 - 用 `omt secret set <name>` 写入，存于 **Windows Credential Manager**（`Bun.secrets`）。
+- TTY 下为交互隐藏输入（不回显、不进 shell 历史、不落盘）；非 TTY（管道/CI）从 stdin 读取。建议终端里直接执行 `omt secret set <name>`，避免明文进历史。
+- `omt secret list` 只列凭据名、不显值（Bun.secrets 无枚举 API，Windows 通过 `cmdkey` 解析 `oh-my-tool/` 前缀；非 Windows 不支持）。
 - 密码不进 `config.toml`、不进 Git、不返回 Agent；Extension 通过 `ctx.secrets.get(name)` 取得。
 
 ## 输出协议

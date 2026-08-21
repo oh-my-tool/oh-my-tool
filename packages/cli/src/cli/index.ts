@@ -3,7 +3,7 @@ import { runSearch } from "./commands/search";
 import { runDescribe } from "./commands/describe";
 import { runCall } from "./commands/call";
 import { runExtensionList, runExtensionInstall } from "./commands/extension";
-import { runSecretSet } from "./commands/secret";
+import { runSecretList, runSecretSet } from "./commands/secret";
 import {
   defaultIntegrationManager,
   runIntegrate,
@@ -23,6 +23,8 @@ Usage:
   omt call <tool> --stdin             execute with JSON from stdin
   omt extension list                  list installed extensions
   omt extension install <path>        install an extension from a local dir
+  omt secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
+  omt secret list                     list secret names (Windows only, values never shown)
   omt setup                           detect agents and install the OMT skill
   omt integrate [status|repair|uninstall]
                                       manage agent skill integrations
@@ -45,6 +47,46 @@ function readStdin(): Promise<string> {
     process.stdin.on("end", () => resolve(data.trim()));
     process.stdin.on("error", reject);
   });
+}
+
+/** 交互式隐藏输入（不回显、不进历史、不落盘），仅 TTY 下调用。 */
+function readSecretHidden(prompt: string): Promise<string> {
+  const { promise, resolve, reject } = Promise.withResolvers<string>();
+  process.stdout.write(prompt);
+  const stdin = process.stdin;
+  const prevRaw = stdin.isRaw;
+  stdin.setRawMode(true);
+  stdin.resume();
+  stdin.setEncoding("utf8");
+  let value = "";
+  const finish = () => {
+    stdin.removeListener("data", onData);
+    stdin.setRawMode(prevRaw);
+    stdin.pause();
+  };
+  const onData = (chunk: string) => {
+    for (const ch of chunk) {
+      if (ch === "\r" || ch === "\n") {
+        finish();
+        process.stdout.write("\n");
+        resolve(value);
+        return;
+      }
+      if (ch === "\x03") {
+        finish();
+        process.stdout.write("\n");
+        reject(new Error("aborted"));
+        return;
+      }
+      if (ch === "\x7f" || ch === "\b") {
+        value = value.slice(0, -1);
+        continue;
+      }
+      value += ch;
+    }
+  };
+  stdin.on("data", onData);
+  return promise;
 }
 
 function print(v: unknown): void {
@@ -157,11 +199,20 @@ export async function main(argv: string[]): Promise<number> {
         const sub = parsed.positional[1];
         if (sub === "set") {
           const name = parsed.positional[2];
-          const value = await readStdin();
+          if (!name) {
+            console.error("usage: omt secret set <name>  (交互输入或 stdin 管道)");
+            return 1;
+          }
+          // TTY 下交互隐藏输入（不回显/不进历史），非 TTY 保持管道 stdin
+          const value = process.stdin.isTTY ? await readSecretHidden("password: ") : await readStdin();
           print(await runSecretSet(name, value));
           return 0;
         }
-        console.error("usage: omt secret set <name>  (value from stdin)");
+        if (sub === "list") {
+          print(await runSecretList());
+          return 0;
+        }
+        console.error("usage: omt secret set <name> | secret list");
         return 1;
       }
       case "extension": {
