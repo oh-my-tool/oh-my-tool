@@ -60,6 +60,7 @@ describe("cli commands", () => {
     createFakeExtension(home, { id: "mysql" });
     const res = await runTool("mysql.query", { connection: "iot-test", sql: "SELECT 1" }, false);
     expect(res.ok).toBe(true);
+    expect(res.meta).toEqual({ ext: "mysql" });
   });
 
   test("extension list returns installed extensions", async () => {

@@ -39,7 +39,7 @@ describe("ohmytool cli e2e", () => {
     const code = await main(["--version"]);
     expect(code).toBe(0);
     expect(logs[0]).toContain('"name": "ohmytool"');
-    expect(logs[0]).toContain("0.1.0");
+    expect(logs[0]).toContain("0.2.0");
   });
 
   test("help advertises ohmytool run and not omt call", async () => {

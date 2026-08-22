@@ -20,7 +20,7 @@ function provider(events: string[]): ToolProvider {
     },
     async execute(_toolId, input) {
       events.push("provider.execute");
-      return { data: input };
+      return { data: input, meta: { connection: "local", durationMs: 7 } };
     },
   };
 }
@@ -63,7 +63,12 @@ describe("executeRuntimeTool", () => {
       deps(events, { async preflight() { events.push("policy"); } }),
       { value: "hello" },
     );
-    expect(result).toMatchObject({ ok: true, toolId: "test.echo", output: { value: "hello" } });
+    expect(result).toMatchObject({
+      ok: true,
+      toolId: "test.echo",
+      output: { value: "hello" },
+      meta: { connection: "local", durationMs: 7 },
+    });
     expect(events).toEqual(["policy", "context", "provider.execute"]);
   });
 });

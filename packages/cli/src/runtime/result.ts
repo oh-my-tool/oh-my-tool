@@ -7,5 +7,6 @@ export interface ExecutionResult {
   ok: boolean;
   toolId: string;
   output?: unknown;
+  meta?: Record<string, unknown>;
   error?: { code: string; message: string };
 }

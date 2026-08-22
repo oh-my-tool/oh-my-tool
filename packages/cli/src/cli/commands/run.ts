@@ -16,7 +16,7 @@ export async function runTool(
   const runtime = await createRuntime();
   const result = await runtime.run(toolName, input);
   if (result.ok) {
-    return { ok: true, tool: toolName, data: result.output, meta: {} };
+    return { ok: true, tool: toolName, data: result.output, meta: result.meta ?? {} };
   }
   return { ok: false, tool: toolName, error: result.error ?? { code: "EXECUTION_FAILED", message: "execution failed" } };
 }

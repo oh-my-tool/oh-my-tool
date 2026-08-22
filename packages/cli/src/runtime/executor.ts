@@ -42,7 +42,12 @@ export async function executeRuntimeTool(
     await deps.policy.preflight(deps.descriptor, input);
     const context = await deps.createExecutionContext(deps.descriptor, input);
     const result = await deps.provider.execute(deps.descriptor.id, input, context);
-    return { ok: true, toolId: deps.descriptor.id, output: result.data };
+    return {
+      ok: true,
+      toolId: deps.descriptor.id,
+      output: result.data,
+      meta: result.meta ?? {},
+    };
   } catch (error) {
     const typed = error as { code?: string; message?: string };
     return {

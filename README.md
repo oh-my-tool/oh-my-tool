@@ -96,19 +96,20 @@ Extensions remain independent repositories and continue using the existing `Tool
 
 ## Configuration and secrets
 
-Connection configuration remains in `config.toml` under the Oh My Tool home. Agents provide only configured connection names; they must not supply hosts, passwords, or other connection credentials.
+The runtime owns only the generic connection mechanism. Concrete connection sections are documented by each extension repository; the core repository does not define MySQL, Redis, or other service-specific configuration.
 
 ```toml
-[extensions.mysql.connections.iot-test]
+[extensions.<extension-id>.connections.<name>]
 environment = "test"
-host = "mysql-test.company.internal"
-port = 3306
-database = "iot"
-username = "iot_readonly"
-secret = "mysql:iot-test"
-tls = true
+host = "127.0.0.1"
+port = 1234
+database = "default"
+username = "user"
+secret = "provider:name"
+tls = false
 ```
 
+See the extension repository documentation for provider-specific fields and examples.
 Use `ohmytool secret set <name>` to store credentials through the platform secret store. Secret values are never included in search/describe results or normal audit output.
 
 ## Testing
@@ -137,4 +138,3 @@ Deferred intentionally:
 - JDK/local environment discovery
 - workflow or agent orchestration
 - daemon, GUI, marketplace, approval UI, and public runtime package
-

@@ -1,6 +1,6 @@
 {
   "name": "@oh-my-tool/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Oh My Tool CLI - local and enterprise tools for agents",
   "bin": {
@@ -16,7 +16,7 @@
     "@oh-my-tool/sdk": "workspace:*"
   },
   "peerDependencies": {
-    "@oh-my-tool/sdk": "^0.1.0"
+    "@oh-my-tool/sdk": "^0.2.0"
   },
   "license": "MIT"
 }
