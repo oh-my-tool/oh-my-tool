@@ -21,18 +21,18 @@ let prev: string | undefined;
 beforeEach(() => {
   home = join(tmpdir(), `omt-cli-${Date.now()}-${Math.random()}`);
   mkdirSync(home, { recursive: true });
-  prev = process.env.OMT_HOME;
-  process.env.OMT_HOME = home;
+  prev = process.env.OH_MY_TOOL_HOME;
+  process.env.OH_MY_TOOL_HOME = home;
   writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.iot-test]\nhost=\"h\"\nport=3306\ndatabase=\"iot\"\nusername=\"u\"\nsecret=\"s\"\ntls=true\n", "utf8");
 });
 afterEach(() => {
-  if (prev === undefined) delete process.env.OMT_HOME;
-  else process.env.OMT_HOME = prev;
+  if (prev === undefined) delete process.env.OH_MY_TOOL_HOME;
+  else process.env.OH_MY_TOOL_HOME = prev;
   rmSync(home, { recursive: true, force: true });
 });
 
 describe("cli commands", () => {
-  test("homeDir honours OMT_HOME", () => {
+  test("homeDir honours OH_MY_TOOL_HOME", () => {
     expect(homeDir()).toBe(home);
   });
 

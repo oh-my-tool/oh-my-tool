@@ -1,6 +1,5 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { createPaths } from "../paths";
 
 export function homeDir(): string {
-  return process.env.OMT_HOME || join(homedir(), ".omt");
+  return createPaths().home;
 }

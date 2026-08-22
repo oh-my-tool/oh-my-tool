@@ -14,8 +14,8 @@ const origError = console.error;
 beforeEach(() => {
   home = join(tmpdir(), `omt-e2e-${Date.now()}-${Math.random()}`);
   mkdirSync(home, { recursive: true });
-  prev = process.env.OMT_HOME;
-  process.env.OMT_HOME = home;
+  prev = process.env.OH_MY_TOOL_HOME;
+  process.env.OH_MY_TOOL_HOME = home;
   logs.length = 0;
   console.log = (v: unknown) => logs.push(typeof v === "string" ? v : JSON.stringify(v));
   console.error = (v: unknown) => logs.push(typeof v === "string" ? v : JSON.stringify(v));
@@ -24,8 +24,8 @@ beforeEach(() => {
 afterEach(() => {
   console.log = origLog;
   console.error = origError;
-  if (prev === undefined) delete process.env.OMT_HOME;
-  else process.env.OMT_HOME = prev;
+  if (prev === undefined) delete process.env.OH_MY_TOOL_HOME;
+  else process.env.OH_MY_TOOL_HOME = prev;
   rmSync(home, { recursive: true, force: true });
 });
 
