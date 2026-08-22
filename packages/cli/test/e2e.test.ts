@@ -32,7 +32,7 @@ afterEach(() => {
 describe("ohmytool cli e2e", () => {
   test("package exposes only the ohmytool binary", async () => {
     const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
-    expect(pkg.bin).toEqual({ ohmytool: "./bin/ohmytool.ts" });
+    expect(pkg.bin).toEqual({ ohmytool: "bin/ohmytool.cjs" });
   });
 
   test("--version prints version", async () => {
