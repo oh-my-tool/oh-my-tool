@@ -28,5 +28,21 @@ jobs:
         run: |
           test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./packages/sdk/package.json').version")"
           test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./packages/cli/package.json').version")"
-      - run: npm publish --workspace=@oh-my-tool/sdk --access public --provenance
-      - run: npm publish --workspace=@oh-my-tool/cli --access public --provenance
+      - name: Publish SDK when needed
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "@oh-my-tool/sdk@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+            echo "@oh-my-tool/sdk@${VERSION} is already published"
+          else
+            npm publish --workspace=@oh-my-tool/sdk --access public --provenance
+          fi
+      - name: Publish CLI when needed
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "@oh-my-tool/cli@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+            echo "@oh-my-tool/cli@${VERSION} is already published"
+          else
+            npm publish --workspace=@oh-my-tool/cli --access public --provenance
+          fi
