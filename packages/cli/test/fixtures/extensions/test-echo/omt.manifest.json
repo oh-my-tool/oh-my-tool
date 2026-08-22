@@ -1,0 +1,21 @@
+{
+  "id": "test",
+  "name": "Test Echo",
+  "version": "0.1.0",
+  "sdkVersion": "^0.1.0",
+  "description": "Deterministic echo fixture for runtime integration gates",
+  "keywords": ["test", "echo"],
+  "tools": [
+    {
+      "name": "test.echo",
+      "description": "Echo a value",
+      "keywords": ["echo"],
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "required": ["value"],
+        "properties": { "value": { "type": "string" } }
+      }
+    }
+  ]
+}

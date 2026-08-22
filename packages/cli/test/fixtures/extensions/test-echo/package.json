@@ -1,0 +1,6 @@
+{
+  "name": "omt-test-echo",
+  "version": "0.1.0",
+  "type": "module",
+  "omt": { "apiVersion": "1", "manifest": "./omt.manifest.json", "entry": "./src/index.ts" }
+}
