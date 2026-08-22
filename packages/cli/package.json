@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Oh My Tool CLI - local and enterprise tools for agents",
   "bin": {
-    "omt": "./bin/omt.ts"
+    "ohmytool": "./bin/ohmytool.ts"
   },
   "files": [
     "assets",

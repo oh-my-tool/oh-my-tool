@@ -47,7 +47,7 @@ describe("smoke: fake mysql extension via CLI", () => {
     expect(listCode).toBe(0);
     expect(logs.join("\n")).toContain("mysql");
 
-    const rejectCode = await main(["call", "mysql.query", "connection=nope"]);
+    const rejectCode = await main(["run", "mysql.query", "connection=nope"]);
     expect(rejectCode).toBe(1);
     expect(logs.join("\n")).toContain("POLICY_VIOLATION");
   });

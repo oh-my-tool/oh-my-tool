@@ -6,7 +6,7 @@ import { createFakeExtension } from "./helpers";
 import {
   runSearch,
   runDescribe,
-  runCall,
+  runTool,
   runExtensionList,
   runExtensionInstall,
   runSecretSet,
@@ -56,9 +56,9 @@ describe("cli commands", () => {
     await expect(runDescribe("mysql.nope")).rejects.toThrow(/unknown tool/i);
   });
 
-  test("call executes a tool and returns a structured result", async () => {
+  test("run executes a tool and returns a structured result", async () => {
     createFakeExtension(home, { id: "mysql" });
-    const res = await runCall("mysql.query", { connection: "iot-test", sql: "SELECT 1" }, false);
+    const res = await runTool("mysql.query", { connection: "iot-test", sql: "SELECT 1" }, false);
     expect(res.ok).toBe(true);
   });
 

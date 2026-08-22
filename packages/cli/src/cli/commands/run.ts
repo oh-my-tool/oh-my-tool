@@ -7,7 +7,7 @@ import { coerceInput } from "../parseArgs";
 import { homeDir } from "../context";
 import type { OmtResult } from "../../core/result";
 
-export async function runCall(
+export async function runTool(
   toolName: string,
   keyValues: Record<string, string>,
   useStdin: boolean,
@@ -42,4 +42,3 @@ function readStdinJson(): Promise<Record<string, unknown>> {
     stdin.on("error", reject);
   });
 }
-

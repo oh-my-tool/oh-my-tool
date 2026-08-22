@@ -1,7 +1,7 @@
 import { parseArgs } from "./parseArgs";
 import { runSearch } from "./commands/search";
 import { runDescribe } from "./commands/describe";
-import { runCall } from "./commands/call";
+import { runTool } from "./commands/run";
 import { runExtensionList, runExtensionInstall } from "./commands/extension";
 import { runSecretList, runSecretSet } from "./commands/secret";
 import {
@@ -17,24 +17,24 @@ import { VERSION } from "../version";
 const HELP = `Oh My Tool - local and enterprise tools for agents
 
 Usage:
-  omt search "<task>"                 search tools by intent
-  omt describe <tool>                 inspect a tool and its input schema
-  omt call <tool> [key=value ...]     execute a tool
-  omt call <tool> --stdin             execute with JSON from stdin
-  omt extension list                  list installed extensions
-  omt extension install <path>        install an extension from a local dir
-  omt secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
-  omt secret list                     list secret names (Windows only, values never shown)
-  omt setup                           detect agents and install the OMT skill
-  omt integrate [status|repair|uninstall]
+  ohmytool search "<task>"                 search tools by intent
+  ohmytool describe <tool>                 inspect a tool and its input schema
+  ohmytool run <tool> [key=value ...]      execute a tool
+  ohmytool run <tool> --stdin              execute with JSON from stdin
+  ohmytool extension list                  list installed extensions
+  ohmytool extension install <path>        install an extension from a local dir
+  ohmytool secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
+  ohmytool secret list                     list secret names (Windows only, values never shown)
+  ohmytool setup                           detect agents and install the OMT skill
+  ohmytool integrate [status|repair|uninstall]
                                       manage agent skill integrations
-  omt --version                       print version
+  ohmytool --version                   print version
 
 Examples:
-  omt search "查询 mysql 设备数据"
-  omt describe mysql.query
-  omt call mysql.query connection=iot-test sql="SELECT id FROM device"
-  echo '{"connection":"iot-test","sql":"SELECT 1"}' | omt call mysql.query --stdin
+  ohmytool search "查询 mysql 设备数据"
+  ohmytool describe mysql.query
+  ohmytool run mysql.query connection=iot-test sql="SELECT id FROM device"
+  echo '{"connection":"iot-test","sql":"SELECT 1"}' | ohmytool run mysql.query --stdin
 `;
 
 const AGENT_IDS_SET = new Set<AgentId>(AGENT_IDS);
@@ -189,9 +189,9 @@ export async function main(argv: string[]): Promise<number> {
         print(await runDescribe(parsed.positional[1]));
         return 0;
       }
-      case "call": {
+      case "run": {
         const tool = parsed.positional[1];
-        const res = await runCall(tool, parsed.keyValues, parsed.flags.includes("stdin"));
+        const res = await runTool(tool, parsed.keyValues, parsed.flags.includes("stdin"));
         print(res);
         return res.ok ? 0 : 1;
       }
@@ -200,7 +200,7 @@ export async function main(argv: string[]): Promise<number> {
         if (sub === "set") {
           const name = parsed.positional[2];
           if (!name) {
-            console.error("usage: omt secret set <name>  (交互输入或 stdin 管道)");
+            console.error("usage: ohmytool secret set <name>  (交互输入或 stdin 管道)");
             return 1;
           }
           // TTY 下交互隐藏输入（不回显/不进历史），非 TTY 保持管道 stdin
@@ -212,7 +212,7 @@ export async function main(argv: string[]): Promise<number> {
           print(await runSecretList());
           return 0;
         }
-        console.error("usage: omt secret set <name> | secret list");
+        console.error("usage: ohmytool secret set <name> | secret list");
         return 1;
       }
       case "extension": {
@@ -225,7 +225,7 @@ export async function main(argv: string[]): Promise<number> {
           print(await runExtensionInstall(parsed.positional[2]));
           return 0;
         }
-        console.error("usage: omt extension list|install <path>");
+        console.error("usage: ohmytool extension list|install <path>");
         return 1;
       }
       case "setup":
@@ -276,12 +276,12 @@ export async function main(argv: string[]): Promise<number> {
         return 0;
       }
       case "-v": {
-        print({ name: "omt", version: VERSION });
+        print({ name: "ohmytool", version: VERSION });
         return 0;
       }
       default:
         if (parsed.flags.includes("version")) {
-          print({ name: "omt", version: VERSION });
+          print({ name: "ohmytool", version: VERSION });
           return 0;
         }
         console.log(HELP);

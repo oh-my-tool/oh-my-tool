@@ -29,11 +29,24 @@ afterEach(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-describe("omt cli e2e", () => {
+describe("ohmytool cli e2e", () => {
+  test("package exposes only the ohmytool binary", async () => {
+    const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
+    expect(pkg.bin).toEqual({ ohmytool: "./bin/ohmytool.ts" });
+  });
+
   test("--version prints version", async () => {
     const code = await main(["--version"]);
     expect(code).toBe(0);
+    expect(logs[0]).toContain('"name": "ohmytool"');
     expect(logs[0]).toContain("0.1.0");
+  });
+
+  test("help advertises ohmytool run and not omt call", async () => {
+    const code = await main(["--help"]);
+    expect(code).toBe(0);
+    expect(logs.join("\n")).toContain("ohmytool run");
+    expect(logs.join("\n")).not.toContain("omt call");
   });
 
   test("search prints tools", async () => {
@@ -50,18 +63,18 @@ describe("omt cli e2e", () => {
     expect(logs[0]).toContain("inputSchema");
   });
 
-  test("call executes and prints a structured result", async () => {
+  test("run executes and prints a structured result", async () => {
     createFakeExtension(home, { id: "mysql" });
-    const code = await main(["call", "mysql.query", "connection=iot-test", "sql=SELECT 1"]);
+    const code = await main(["run", "mysql.query", "connection=iot-test", "sql=SELECT 1"]);
     expect(code).toBe(0);
     expect(logs[0]).toContain('"ok": true');
   });
 
-  test("call rejects an unknown connection with a non-zero exit", async () => {
+  test("call is no longer a canonical command", async () => {
     createFakeExtension(home, { id: "mysql" });
-    const code = await main(["call", "mysql.query", "connection=nope"]);
+    const code = await main(["call", "mysql.query", "connection=iot-test", "sql=SELECT 1"]);
     expect(code).toBe(1);
-    expect(logs[0]).toContain("POLICY_VIOLATION");
+    expect(logs.join("\n")).not.toContain('"ok": true');
   });
 
   test("extension list prints installed", async () => {
