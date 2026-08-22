@@ -1,77 +1,77 @@
 ---
 name: oh-my-tool
-description: Discover and invoke local, development, and enterprise capabilities through OMT. Use when querying databases, caches, configuration, logs, or internal platforms supported by installed OMT extensions.
+description: Discover and invoke local, development, and enterprise tools through the Oh My Tool Agent Tool Runtime.
 ---
 
-# Oh My Tool
+# Oh My Tool — The Agent Tool Runtime
 
-Use **Oh My Tool (`omt`)** to discover and invoke local, development, and enterprise capabilities.
-
-OMT provides a single entry point for tools such as databases, internal CLIs, configuration systems, observability platforms, and other installed extensions.
+Use the canonical `ohmytool` CLI to discover and execute tools exposed by installed native extensions.
 
 ## When to use
 
-Use OMT when the task requires interacting with an external capability that may be available in the user's environment, for example:
+Use Oh My Tool when the task requires an external capability that may be available in the user's environment, such as:
 
 - querying a database
 - inspecting Redis
 - reading configuration
 - searching internal logs
-- accessing internal platforms
-- invoking development or operations tools
+- invoking development and operations tools
 
 Do not assume a specific extension or tool is installed.
 
 ## Workflow
 
-### 1. Search for a capability
+### 1. Search
 
-When you need a capability and do not already know the exact OMT tool name:
-
-```bash
-omt search "<what you need to do>"
-```
-
-Use the returned tool metadata to choose the most relevant capability.
-
-### 2. Inspect the tool
-
-Before using an unfamiliar tool, inspect its definition:
+When you do not know the exact tool ID:
 
 ```bash
-omt describe <tool-name>
+ohmytool search "<what you need to do>"
 ```
 
-Use the returned input schema, constraints, risk level, and available configuration to construct the call.
+Search returns lightweight summary metadata and does not load handlers or access secrets.
 
-### 3. Call the tool
+### 2. Describe
 
-Invoke the selected capability through OMT:
+Before using an unfamiliar tool, inspect its complete descriptor and input schema:
 
 ```bash
-omt call <tool-name> ...
+ohmytool describe <tool-name>
 ```
 
-For structured or complex arguments, prefer JSON input through stdin when supported.
+Use the returned schema, constraints, risk level, and configuration requirements to construct the input.
+
+### 3. Run
+
+Execute the selected tool through the runtime:
+
+```bash
+ohmytool run <tool-name> key=value
+```
+
+For structured or complex arguments, prefer JSON through stdin:
+
+```bash
+echo '{"connection":"iot-test","sql":"SELECT 1"}' | ohmytool run mysql.query --stdin
+```
 
 ## Rules
 
-- Prefer OMT over directly invoking an underlying tool when the capability is available through OMT.
-- Do not guess installed extensions or tool names. Use `omt search`.
-- Do not guess tool arguments. Use `omt describe`.
-- Do not guess connection names, internal endpoints, credentials, tokens, or authentication details.
-- Never request or expose secrets that OMT manages internally.
-- Respect tool risk levels, environment restrictions, and confirmation requirements.
-- Prefer the smallest and safest capability that can complete the task.
-- Do not bypass OMT policy restrictions by directly invoking the underlying CLI, API, database client, or service.
-- Treat OMT results as structured tool output and use them to continue the task.
+- Prefer `ohmytool` over directly invoking an underlying database, cache, CLI, API, or service.
+- Do not guess installed tools; use `ohmytool search`.
+- Do not guess tool arguments; use `ohmytool describe`.
+- Do not guess connection names, endpoints, credentials, tokens, or authentication details.
+- Never request or expose secrets managed by Oh My Tool.
+- Respect tool risk levels, policy restrictions, and environment restrictions.
+- Prefer the smallest and safest tool that can complete the task.
+- Treat runtime results as structured tool output and use them to continue the task.
 
 ## Mental model
 
-OMT is the capability broker. Extensions and underlying tools are implementation details managed by OMT.
+The CLI is the Agent-facing adapter. ToolRuntime indexes static descriptors and governs execution through ToolProviders; native extension handlers are loaded only when `run` executes a tool.
 
 ```text
-search   → discover what is available
-describe → understand how to use it
-call     → execute it
+search   → lightweight ToolDescriptor summary
+describe → complete ToolDescriptor and inputSchema
+run      → policy → provider → dynamic handler execution
 ```

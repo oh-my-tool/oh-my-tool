@@ -44,6 +44,15 @@ const fakeCommands = (...names: string[]) => async (candidates: string[]) =>
   candidates.find((name) => names.includes(name));
 
 describe("agent integration", () => {
+  test("bundled Skill documents the canonical ohmytool search-describe-run protocol", () => {
+    const skill = readFileSync(join(import.meta.dir, "../assets/skills/oh-my-tool/SKILL.md"), "utf8");
+    expect(skill).toContain("ohmytool search");
+    expect(skill).toContain("ohmytool describe");
+    expect(skill).toContain("ohmytool run");
+    expect(skill).not.toMatch(/^\s*(?:[-*]\s*)?omt\s/m);
+    expect(skill).not.toContain("omt call");
+  });
+
   test("validates required skill frontmatter", () => {
     expect(validateSkill(skillSource).name).toBe("oh-my-tool");
     writeFileSync(join(skillSource, "SKILL.md"), "# missing metadata\n", "utf8");
