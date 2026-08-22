@@ -20,6 +20,12 @@
 - Policy must run before secret access.
 - Preserve `ToolManifest -> ExtensionManifest -> ToolHandler` SDK compatibility.
 - Legacy `~/.omt` migration copies known data and never moves or deletes the old directory.
+- `OH_MY_TOOL_HOME` is the only supported home override; an explicit override disables automatic legacy migration.
+- `ToolRegistry` is the single source of truth for normalized descriptors; providers do not expose `getTool`.
+- `descriptor.provider.id` identifies a registered provider; extension/package identity is represented by separate `source` metadata.
+- Runtime initialization completes provider discovery and duplicate detection before any CLI command is served.
+- Search returns summary metadata only; describe returns the full descriptor including `inputSchema`.
+- Runtime execution is `resolve -> validate -> policy -> prepare context -> provider.execute`; native providers load handlers only inside `execute`.
 - Every production behavior change requires a failing Bun test before implementation.
 - MCP, JDK discovery, audit logging, approval UI, workflows, agents, GUI, daemon, and marketplace are out of scope.
 
@@ -135,6 +141,7 @@ git commit -m "refactor: rename CLI to ohmytool and call to run"
 
 **Files:**
 - Create: `packages/cli/src/paths.ts`
+- Create: `packages/cli/src/migration.ts`
 - Modify: `packages/cli/src/cli/context.ts`
 - Modify: all CLI modules currently calling `homeDir()` or constructing `.omt` paths
 - Create: `packages/cli/test/paths.test.ts`
@@ -142,17 +149,17 @@ git commit -m "refactor: rename CLI to ohmytool and call to run"
 - Modify: `packages/cli/test/smoke.test.ts`
 
 **Interfaces:**
-- Produces: `createPaths(env?: NodeJS.ProcessEnv, platform?: NodeJS.Platform)` returning `home`, `config`, `extensions`, `integrations`, `cache`, and `audit`.
-- Produces: `migrateLegacyHome(paths): Promise<boolean>` that copies known files/directories and preserves the legacy directory.
+- Produces: `createPaths(options: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; userHome?: string })` returning `home`, `config`, `extensions`, `integrations`, `cache`, `audit`, and `isCustomHome`.
+- Produces: `migrateLegacyHome(paths): Promise<boolean>` in `migration.ts`; `paths.ts` remains pure and has no filesystem side effects.
 
 - [ ] **Step 1: Write failing path tests**
 
 Cover:
 
 ```ts
-expect(createPaths({ OH_MY_TOOL_HOME: "X:" }, "win32").home).toBe("X:");
-expect(createPaths({}, "linux").home).toMatch(/\.oh-my-tool$/);
-expect(createPaths({ OMT_HOME: "legacy" }, "linux").home).not.toBe("legacy");
+expect(createPaths({ env: { OH_MY_TOOL_HOME: "X:" }, platform: "win32", userHome: "U:" }).home).toBe("X:");
+expect(createPaths({ env: {}, platform: "linux", userHome: "/users/test" }).home).toBe("/users/test/.oh-my-tool");
+expect(createPaths({ env: { OH_MY_TOOL_HOME: "custom" }, platform: "linux", userHome: "/users/test" }).isCustomHome).toBe(true);
 ```
 
 Add a migration test with a temporary legacy directory containing configuration and an extension; assert the new directory receives copies, the old files remain, and a second migration does not overwrite newer destination files.
@@ -165,15 +172,19 @@ bun test packages/cli/test/paths.test.ts
 
 Expected: module/function-not-found failures.
 
-- [ ] **Step 3: Implement paths and migration**
+- [ ] **Step 3: Implement pure paths and migration**
 
-Use `OH_MY_TOOL_HOME` as the supported override, derive the platform default, define all child paths centrally, and copy only the existing OMT state directories/files needed by config, extensions, integrations, cache, and audit. Never call move/delete for migration.
+Use `OH_MY_TOOL_HOME` as the only supported override, accept injected `userHome` and `platform`, derive the platform default, and define all child paths centrally. Put copy side effects in `migration.ts`; copy only the existing OMT state directories/files needed by config, extensions, integrations, cache, and audit. Never call move/delete for migration.
 
-- [ ] **Step 4: Replace ad-hoc home path construction**
+- [ ] **Step 4: Test migration ordering and custom-home behavior**
 
-Update config, extension, integration, secret, search, and command modules to consume the centralized paths object or `paths.home`; retain `OMT_HOME` only as a legacy test override if required for compatibility, never as the default.
+Assert migration runs before new-home directory creation, and that an explicit `OH_MY_TOOL_HOME` skips scanning or copying from the real legacy home. Use injected `userHome` and temporary paths so tests never inspect the developer's actual profile.
 
-- [ ] **Step 5: Run all CLI tests**
+- [ ] **Step 5: Replace ad-hoc home path construction**
+
+Update config, extension, integration, secret, search, and command modules to consume the centralized paths object or `paths.home`; remove production reads of `OMT_HOME`.
+
+- [ ] **Step 6: Run all CLI tests**
 
 ```powershell
 bun test packages/cli/test
@@ -181,7 +192,7 @@ bun test packages/cli/test
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```powershell
 git add packages/cli/src packages/cli/test
@@ -201,19 +212,43 @@ git commit -m "refactor: centralize Oh My Tool filesystem paths"
 - Create: `packages/cli/test/runtime/registry.test.ts`
 
 **Interfaces:**
-- Produces: `ToolDescriptor`, `ExecutionContext`, `ToolProvider`, `ProviderRegistry`, and `ToolRegistry`.
-- `ToolRegistry.register(provider, descriptors)` rejects duplicate descriptor IDs with an error code `DUPLICATE_TOOL_ID`.
-- `ToolRegistry.search(query)` returns descriptors ranked using the existing search semantics without exposing `inputSchema` in search results.
+- Produces: `ToolDescriptor`, `ToolSearchResult`, `ExecutionContext`, `ToolResult`, `ExecutionResult`, `ToolProvider`, `ProviderRegistry`, and `ToolRegistry`.
+- `ToolDescriptor` includes `provider: { id: "native", kind: "native" }` and `source: { id: "omt-mysql", kind: "extension" }` for native MySQL; the provider ID must match a registered provider.
+- `ToolProvider` exposes only `listTools()` and `execute()`; `ToolRegistry` is the descriptor single source of truth and has no provider-specific lookup path.
+- `ProviderRegistry.register(provider)` and `ProviderRegistry.get(id)` manage provider instances; duplicate providers fail with `DUPLICATE_PROVIDER_ID`, and `require(id)` fails with `PROVIDER_NOT_FOUND`.
+- `ToolRegistry.register(descriptors)`, `get(toolId)`, and `search(query)` manage descriptors; duplicate tools fail with `DUPLICATE_TOOL_ID`.
+- `ToolSearchResult = Omit<ToolDescriptor, "inputSchema">`; search returns summaries and describe returns full descriptors.
+- `ExecutionResult` is the normalized runtime shape: `{ ok: boolean; toolId: string; output?: unknown; error?: { code: string; message: string } }`.
+
+The frozen provider contract is:
+
+```ts
+interface ToolProvider {
+  readonly id: string;
+  readonly kind: string;
+  listTools(): Promise<readonly ToolDescriptor[]>;
+  execute(toolId: string, input: unknown, context: ExecutionContext): Promise<ToolResult>;
+}
+```
+
+`ExecutionContext` carries the already-approved execution dependencies (logger, config, and secret access); constructing that context is a Runtime responsibility, not a Native Provider policy decision.
 
 - [ ] **Step 1: Write failing registry tests**
 
-Test provider registration, lookup by tool ID, duplicate rejection, and search across descriptors from two providers:
+Test provider registration, duplicate provider rejection, missing-provider behavior, descriptor registration, duplicate rejection, provider/source identity invariants, and search across descriptors from two providers:
 
 ```ts
-const native = provider("native-a", "native", [{ id: "mysql.query", description: "query", risk: "read" }]);
+const providers = new ProviderRegistry();
+providers.register(nativeProvider("native"));
+expect(() => providers.register(nativeProvider("native"))).toThrow(/DUPLICATE_PROVIDER_ID/);
+expect(providers.get("missing")).toBeUndefined();
+expect(() => providers.require("missing")).toThrow(/PROVIDER_NOT_FOUND/);
+
 const registry = new ToolRegistry();
-await registry.register(native);
-await expect(registry.register(provider("native-b", "native", [{ id: "mysql.query", description: "other", risk: "read" }]))).rejects.toMatchObject({ code: "DUPLICATE_TOOL_ID" });
+registry.register([{ id: "mysql.query", description: "query", risk: "read", provider: { id: "native", kind: "native" }, source: { id: "omt-mysql", kind: "extension" } }]);
+expect(() => registry.register([{ id: "mysql.query", description: "other", risk: "read", provider: { id: "native", kind: "native" }, source: { id: "other", kind: "extension" } }])).toThrow(/DUPLICATE_TOOL_ID/);
+expect(registry.search("query")[0]).not.toHaveProperty("inputSchema");
+expect(registry.get("mysql.query")).toHaveProperty("provider.id", "native");
 ```
 
 - [ ] **Step 2: Run tests and verify they fail**
@@ -226,7 +261,7 @@ Expected: missing runtime modules/types.
 
 - [ ] **Step 3: Implement minimal models and registry behavior**
 
-Use the existing risk union and result types where compatible. Keep provider metadata on every descriptor. Make registry loading explicit and asynchronous so future MCP cache providers fit without changing the runtime facade.
+Use the existing risk union and result types where compatible. Keep provider and source metadata on every descriptor, enforce `descriptor.provider.id === registeredProvider.id` during runtime initialization, and keep discovery explicit and asynchronous in the future runtime factory rather than making `ToolRegistry` own providers.
 
 - [ ] **Step 4: Run focused and existing search tests**
 
@@ -273,15 +308,23 @@ bun test packages/cli/test/runtime/executor.test.ts packages/cli/test/schema.tes
 
 Expected: the new tests pass against compatibility exports; if any fail, correct the test setup before moving code.
 
-- [ ] **Step 3: Move behavior-preserving implementations**
+- [ ] **Step 3: Add the failing execution-order invariant test**
 
-Place schema/result/executor logic under `runtime`, keep temporary re-exports from `core` so unrelated imports remain stable, and ensure policy is evaluated before the executor asks the secret manager for values.
+Use an injected secret store and handler loader that record access. Give the runtime input that policy must reject; assert policy rejects and neither the secret store nor handler loader is touched.
 
-- [ ] **Step 4: Add a test proving policy precedes secrets**
+- [ ] **Step 4: Run the invariant test and verify it fails**
 
-Use an injected secret store that records access and an input rejected by policy. Assert the rejection occurs and the store was never queried.
+```powershell
+bun test packages/cli/test/runtime/executor.test.ts
+```
 
-- [ ] **Step 5: Run all CLI tests**
+Expected: failure because the new runtime pipeline does not yet enforce both boundaries.
+
+- [ ] **Step 5: Move behavior-preserving implementations**
+
+Place schema/result/executor logic under `runtime`, keep temporary re-exports from `core` so unrelated imports remain stable, and implement `resolve -> validate -> policy -> prepare context -> provider.execute`. Secret access and handler loading occur only after policy succeeds.
+
+- [ ] **Step 6: Run all CLI tests**
 
 ```powershell
 bun test packages/cli/test
@@ -289,7 +332,7 @@ bun test packages/cli/test
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```powershell
 git add packages/cli/src/core packages/cli/src/runtime packages/cli/test
@@ -311,12 +354,13 @@ git commit -m "refactor: move core execution behavior into runtime"
 
 **Interfaces:**
 - Produces: `NativeExtensionProvider` implementing `ToolProvider`.
-- `listTools()` and `getTool()` use static manifests only.
-- `execute(toolId, input, context)` loads the selected extension handler only after runtime validation and policy.
+- `id === "native"` and `kind === "native"`.
+- `listTools()` uses static manifests only and returns descriptors with `provider: { id: "native", kind: "native" }` and `source: { id: manifest.id, kind: "extension" }`.
+- `execute(toolId, input, context)` assumes runtime preflight succeeded; it locates the extension, dynamically imports the handler, and executes it using the supplied `ExecutionContext`. It is not a policy decision point.
 
 - [ ] **Step 1: Write failing provider tests**
 
-Create a temporary fake extension with a manifest and handler. Assert list/describe return descriptors with `provider.kind === "native"`, and instrument the handler module so search/list never imports it. Assert execute imports it and returns the existing `ToolResult`.
+Create a temporary fake extension whose handler module immediately throws `HANDLER_IMPORTED`. Assert `listTools()`, runtime search, and runtime describe all succeed without importing it. Assert only execute dynamically imports the handler and returns the existing `ToolResult` when the handler is non-poisoned.
 
 - [ ] **Step 2: Run focused tests and verify failure**
 
@@ -330,9 +374,9 @@ Expected: missing provider implementation or contract failures.
 
 Reuse manifest validation, discovery, install, and loader logic; do not duplicate extension semantics. Convert each manifest tool into a descriptor retaining its original ID, description, keywords, risk, and schema.
 
-- [ ] **Step 4: Verify static/dynamic loading boundaries**
+- [ ] **Step 4: Verify static/dynamic loading boundaries and provider identity**
 
-Run the provider test and confirm static operations do not import handlers, while execute does. Keep secrets and config access in the execution path only.
+Run the provider test and confirm static operations do not import handlers, while execute does. Assert every descriptor has provider ID `native`, source ID equal to the extension manifest ID, and no provider method performs policy or secret decisions.
 
 - [ ] **Step 5: Run CLI and SDK tests**
 
@@ -364,7 +408,8 @@ git commit -m "refactor: add native extension provider"
 - Modify: `packages/cli/test/smoke.test.ts`
 
 **Interfaces:**
-- Produces: `createToolRuntime(options): ToolRuntime` with `search(query)`, `describe(toolId)`, and `run(toolId, input)`.
+- Produces: `async createToolRuntime(options): Promise<ToolRuntime>` with `search(query): Promise<ToolSearchResult[]>`, `describe(toolId): Promise<ToolDescriptor>`, and `run(toolId, input): Promise<ExecutionResult>`.
+- Factory initialization registers providers, awaits each `listTools()`, enforces provider identity, registers all descriptors, rejects duplicate IDs, and only then returns a serving runtime.
 - CLI command modules no longer construct registry/loader/schema/policy/executor chains directly.
 
 - [ ] **Step 1: Write failing facade tests**
@@ -372,7 +417,9 @@ git commit -m "refactor: add native extension provider"
 Construct a runtime with a fake provider and assert:
 
 ```ts
+const runtime = await createToolRuntime({ providers: [fakeProvider] });
 expect((await runtime.search("mysql"))[0].id).toBe("mysql.query");
+expect((await runtime.search("mysql"))[0]).not.toHaveProperty("inputSchema");
 expect((await runtime.describe("mysql.query")).provider.kind).toBe("native");
 expect((await runtime.run("mysql.query", { connection: "iot-test" })).ok).toBe(true);
 ```
@@ -389,7 +436,7 @@ Expected: missing facade or incomplete provider routing.
 
 - [ ] **Step 3: Implement the facade**
 
-Build the provider registry and tool registry once per command context, register the native provider, resolve descriptors centrally, validate input centrally, invoke provider execution centrally, and normalize results.
+Build the provider registry and tool registry during the async factory, register the native provider, await static discovery, resolve descriptors centrally, validate input centrally, apply policy before preparing secret-capable context, invoke provider execution centrally, and normalize raw `ToolResult` into `ExecutionResult`.
 
 - [ ] **Step 4: Replace command wiring**
 
@@ -461,7 +508,7 @@ git commit -m "docs: update Agent Tool Runtime positioning"
 - Modify only if regression fixes are required: `packages/cli/test`, `omt-mysql`, `omt-redis`
 
 **Interfaces:**
-- Produces: verified native execution path through `ToolRuntime -> NativeExtensionProvider -> extension`.
+- Produces: verified unchanged `omt-mysql` and `omt-redis` install/discovery/describe compatibility through `ToolRuntime -> NativeExtensionProvider -> extension`.
 
 - [ ] **Step 1: Run root tests**
 
@@ -483,18 +530,31 @@ Expected: both PASS.
 
 - [ ] **Step 3: Run CLI command gates**
 
-Use the workspace package entrypoint or Bun script to verify:
+Use a temporary injected `OH_MY_TOOL_HOME` and the workspace package entrypoint or Bun script. Install both independent repositories without modifying their manifests or SDK contracts:
 
 ```powershell
-ohmytool --version
+$env:OH_MY_TOOL_HOME = Join-Path $PWD ".gate-home"
+ohmytool extension install ..\omt-mysql
+ohmytool extension install ..\omt-redis
 ohmytool search "mysql"
 ohmytool describe mysql.query
-ohmytool run mysql.query --stdin
+ohmytool search "redis"
+ohmytool describe redis.get
 ```
 
-Expected: version, descriptor, and execution paths use the new names; database execution may require the user's configured connection and should report a normal policy/configuration error rather than an architecture error when unavailable.
+Expected: both existing extensions install unchanged, appear in search, and expose full descriptors through describe. No database or Redis server is required for this gate.
 
-- [ ] **Step 4: Inspect the final diff**
+- [ ] **Step 4: Run deterministic execution gate**
+
+Use the poison/fake extension fixture from Task 6 to run a complete command path:
+
+```powershell
+'{"value":"hello"}' | ohmytool run test.echo --stdin
+```
+
+Expected: `ExecutionResult.ok === true`; this gate does not depend on local MySQL or Redis credentials. If a configured local database is available, an additional optional read-only smoke may be run, but it is not a release requirement.
+
+- [ ] **Step 5: Inspect the final diff**
 
 ```powershell
 git diff main --check
@@ -503,10 +563,9 @@ git status --short
 
 Expected: only intended source, tests, docs, and plan/spec files are changed; no generated secrets or temporary homes are tracked.
 
-- [ ] **Step 5: Commit any final regression fix**
+- [ ] **Step 6: Commit any final regression fix**
 
 ```powershell
 git add packages README.md
 git commit -m "test: verify native provider regression gates"
 ```
-
