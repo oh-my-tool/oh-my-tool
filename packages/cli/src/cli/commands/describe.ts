@@ -1,6 +1,4 @@
-import { discoverExtensions } from "../../extension/discovery";
-import { createRegistry, resolveTool } from "../../core/registry";
-import { homeDir } from "../context";
+import { createRuntime } from "../context";
 
 export interface DescribedTool {
   name: string;
@@ -12,15 +10,15 @@ export interface DescribedTool {
 }
 
 export async function runDescribe(toolName: string): Promise<DescribedTool> {
-  const reg = createRegistry(discoverExtensions(homeDir()));
-  const { tool, extension } = resolveTool(reg, toolName);
+  const runtime = await createRuntime();
+  const descriptor = await runtime.describe(toolName);
   return {
-    name: tool.name,
-    description: tool.description,
-    risk: tool.risk ?? "read",
-    inputSchema: tool.inputSchema,
-    extension: extension.id,
-    extensionVersion: extension.version,
+    name: descriptor.id,
+    description: descriptor.description,
+    risk: descriptor.risk,
+    inputSchema: descriptor.inputSchema,
+    extension: descriptor.source.id,
+    extensionVersion: "unknown",
   };
 }
 

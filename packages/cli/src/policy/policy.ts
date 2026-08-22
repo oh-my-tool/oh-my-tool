@@ -1,7 +1,9 @@
 import type { Config } from "../config/config";
 import { getConnectionConfig } from "../config/config";
 
-export class PolicyError extends Error {}
+export class PolicyError extends Error {
+  readonly code = "POLICY_VIOLATION";
+}
 
 const FORBIDDEN = /(?:^|[^a-z_])(insert|update|delete|drop|alter|create|truncate|rename|grant|revoke|replace|call|set|commit|rollback|load\s+data|lock\s+tables|unlock\s+tables|create\s+database|drop\s+database)(?:[^a-z_]|$)/i;
 

@@ -1,10 +1,5 @@
-import { discoverExtensions } from "../../extension/discovery";
-import { createRegistry } from "../../core/registry";
-import { executeTool } from "../../core/executor";
-import { loadConfig } from "../../config/config";
-import { SecretsManager } from "../../secrets/secrets";
 import { coerceInput } from "../parseArgs";
-import { homeDir } from "../context";
+import { createRuntime } from "../context";
 import type { OmtResult } from "../../core/result";
 
 export async function runTool(
@@ -18,12 +13,12 @@ export async function runTool(
   } else {
     input = coerceInput(keyValues);
   }
-  const deps = {
-    registry: createRegistry(discoverExtensions(homeDir())),
-    config: loadConfig(homeDir()),
-    secrets: new SecretsManager(),
-  };
-  return executeTool(deps, toolName, input);
+  const runtime = await createRuntime();
+  const result = await runtime.run(toolName, input);
+  if (result.ok) {
+    return { ok: true, tool: toolName, data: result.output, meta: {} };
+  }
+  return { ok: false, tool: toolName, error: result.error ?? { code: "EXECUTION_FAILED", message: "execution failed" } };
 }
 
 function readStdinJson(): Promise<Record<string, unknown>> {
