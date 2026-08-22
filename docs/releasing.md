@@ -18,8 +18,9 @@ automation when trusted publishing is unavailable.
 
 ## Release checklist
 
-1. Update both package versions and the changelog/release notes.
-2. Run `npm run check`.
+1. Run `npm run version:release -- 0.2.1` to update both package versions and
+   the CLI's exact SDK dependency together.
+2. Run `npm install` and `npm run check`.
 3. Commit, push, and open a pull request.
 4. After merge, create and push a matching tag, for example `v0.2.1`.
 5. The publish workflow verifies and publishes SDK first, then CLI.

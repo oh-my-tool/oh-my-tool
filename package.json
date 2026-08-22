@@ -11,7 +11,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run pack:check",
-    "pack:check": "npm pack --workspace=@oh-my-tool/sdk --dry-run && npm pack --workspace=@oh-my-tool/cli --dry-run"
+    "pack:check": "npm pack --workspace=@oh-my-tool/sdk --dry-run && npm pack --workspace=@oh-my-tool/cli --dry-run",
+    "version:release": "node scripts/set-release-version.mjs"
   },
   "devDependencies": {
     "bun-types": "^1.3.14",
