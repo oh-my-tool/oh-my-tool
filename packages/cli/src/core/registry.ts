@@ -1,14 +1,8 @@
 import type { ExtensionManifest } from "@oh-my-tool/sdk";
 import type { InstalledExtension } from "../extension/discovery";
 
-export class OmtError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { RuntimeError as OmtError } from "../runtime/errors";
+export { OmtError };
 
 export interface Registry {
   byTool: Map<string, { extension: InstalledExtension; tool: ExtensionManifest["tools"][number] }>;

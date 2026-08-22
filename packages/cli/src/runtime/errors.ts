@@ -4,3 +4,5 @@ export class RuntimeError extends Error {
     this.name = "RuntimeError";
   }
 }
+
+export { RuntimeError as OmtError };

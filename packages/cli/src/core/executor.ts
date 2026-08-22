@@ -82,6 +82,13 @@ export async function executeTool(
     if (e instanceof OmtError) {
       return { ok: false, tool: toolName, error: { code: e.code, message: e.message } };
     }
+    if (e && typeof e === "object" && "code" in e && typeof (e as { code?: unknown }).code === "string") {
+      return {
+        ok: false,
+        tool: toolName,
+        error: { code: (e as { code: string }).code, message: e instanceof Error ? e.message : String(e) },
+      };
+    }
     return {
       ok: false,
       tool: toolName,
