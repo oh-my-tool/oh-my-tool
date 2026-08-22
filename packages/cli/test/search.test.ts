@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import type { ExtensionManifest } from "@oh-my-tool/sdk";
 import { searchTools } from "../src/search/search";
 
-const manifests = [
+const manifests: ExtensionManifest[] = [
   {
     id: "mysql",
     name: "MySQL",
     version: "0.1.0",
+    sdkVersion: "^0.1.0",
     description: "Query and inspect MySQL databases",
     keywords: ["mysql", "sql", "数据库", "查数据"],
     tools: [
@@ -27,6 +29,7 @@ const manifests = [
     id: "redis",
     name: "Redis",
     version: "0.1.0",
+    sdkVersion: "^0.1.0",
     description: "Redis key operations",
     keywords: ["redis", "cache"],
     tools: [

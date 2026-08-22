@@ -3,13 +3,18 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.9.2",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test && npm run pack:check",
+    "pack:check": "npm pack --workspace=@oh-my-tool/sdk --dry-run && npm pack --workspace=@oh-my-tool/cli --dry-run"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "bun-types": "^1.3.14",
+    "typescript": "^5.9.2"
   }
 }

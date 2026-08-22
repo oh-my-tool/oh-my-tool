@@ -23,7 +23,7 @@ const mysqlQuery: ToolDescriptor = {
   risk: "read",
   inputSchema: { type: "object" },
   provider: { id: "native", kind: "native" },
-  source: { id: "omt-mysql", kind: "extension" },
+  source: { id: "mysql", kind: "extension" },
 };
 
 describe("ProviderRegistry", () => {
@@ -60,6 +60,19 @@ describe("ToolRegistry", () => {
     } catch (error) {
       expect(error).toMatchObject({ code: "DUPLICATE_TOOL_ID" });
     }
+  });
+
+  test("does not partially register a batch that contains duplicate IDs", () => {
+    const registry = new ToolRegistry();
+    const redisGet: ToolDescriptor = {
+      ...mysqlQuery,
+      id: "redis.get",
+      provider: { id: "native", kind: "native" },
+      source: { id: "redis", kind: "extension" },
+    };
+
+    expect(() => registry.register([redisGet, { ...redisGet }])).toThrow(/duplicate tool/i);
+    expect(registry.get("redis.get")).toBeUndefined();
   });
 
   test("search ranks descriptors from multiple providers", () => {

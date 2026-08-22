@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import type { ExtensionManifest } from "@oh-my-tool/sdk";
 import { parseManifest, validateManifest, validateHandlers, checkSdkCompatibility } from "../src/extension/manifest";
 
-const validManifest = {
+const validManifest: ExtensionManifest = {
   id: "mysql",
   name: "MySQL",
   version: "0.1.0",

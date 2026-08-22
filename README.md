@@ -49,8 +49,12 @@ ohmytool search → ohmytool describe → ohmytool run
 ## Quick start
 
 ```powershell
-# Install Bun, then install workspace dependencies
-bun install
+# Install Bun, then install the published CLI from npm
+npm install --global @oh-my-tool/cli
+ohmytool --version
+
+# Or clone the repository for development
+npm ci
 
 # Check the CLI
 bun packages/cli/bin/ohmytool.ts --version
@@ -63,6 +67,9 @@ bun packages/cli/bin/ohmytool.ts extension install <path-to-extension>
 bun packages/cli/bin/ohmytool.ts search "query mysql data"
 bun packages/cli/bin/ohmytool.ts describe mysql.query
 ```
+
+The CLI package is distributed through npm, but it runs on Bun 1.4 or newer.
+See [the release guide](docs/releasing.md) for maintainer publishing steps.
 
 ## State and migration
 
@@ -88,11 +95,13 @@ oh-my-tool/
 │       ├── src/extension/                       manifest/discovery/install/loader
 │       ├── src/policy/                          policy preflight
 │       └── src/secrets/                         SecretStore integration
-├── omt-mysql/      independent native extension repository
-└── omt-redis/      independent native extension repository
 ```
 
-Extensions remain independent repositories and continue using the existing `ToolManifest → ExtensionManifest → ToolHandler` SDK contract. The core runtime does not own concrete database or cache capabilities.
+Extensions remain independent repositories, including
+[`omt-mysql`](https://github.com/oh-my-tool/omt-mysql) and
+[`omt-redis`](https://github.com/oh-my-tool/omt-redis), and continue using the
+existing `ToolManifest → ExtensionManifest → ToolHandler` SDK contract. The
+core runtime does not own concrete database or cache capabilities.
 
 ## Configuration and secrets
 
@@ -115,8 +124,8 @@ Use `ohmytool secret set <name>` to store credentials through the platform secre
 ## Testing
 
 ```powershell
-bun install --frozen-lockfile
-bun test
+npm ci
+npm run check
 ```
 
 The independent `omt-mysql` and `omt-redis` repositories have their own test suites. They do not require a running database for unit tests.
@@ -138,3 +147,9 @@ Deferred intentionally:
 - JDK/local environment discovery
 - workflow or agent orchestration
 - daemon, GUI, marketplace, approval UI, and public runtime package
+
+## Contributing and security
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. For
+questions, use GitHub Discussions; for ordinary defects, use the bug report
+form. Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).

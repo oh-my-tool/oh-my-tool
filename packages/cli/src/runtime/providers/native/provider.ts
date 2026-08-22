@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { discoverExtensions, type InstalledExtension } from "../../../extension/discovery";
 import { loadExtension } from "../../../extension/loader";
 import type { OhMyToolPaths } from "../../../paths";
@@ -19,16 +17,22 @@ export class NativeExtensionProvider implements ToolProvider {
   async listTools(): Promise<readonly ToolDescriptor[]> {
     const descriptors: ToolDescriptor[] = [];
     for (const extension of discoverExtensions(this.home())) {
-      const sourceId = this.sourceId(extension);
       for (const tool of extension.manifest.tools) {
         descriptors.push({
           id: tool.name,
           description: tool.description,
-          keywords: tool.keywords,
+          // Preserve extension-level discovery terms from the legacy search
+          // contract while keeping ToolRegistry independent of manifests.
+          keywords: [...new Set([
+            ...(tool.keywords ?? []),
+            extension.manifest.id,
+            extension.manifest.name,
+            ...(extension.manifest.keywords ?? []),
+          ])],
           risk: tool.risk ?? "read",
           inputSchema: tool.inputSchema,
           provider: { id: this.id, kind: this.kind },
-          source: { id: sourceId, kind: "extension" },
+          source: { id: extension.manifest.id, kind: "extension" },
         });
       }
     }
@@ -49,18 +53,5 @@ export class NativeExtensionProvider implements ToolProvider {
     );
     if (!extension) throw new Error(`unknown native tool '${toolId}'`);
     return extension;
-  }
-
-  private sourceId(extension: InstalledExtension): string {
-    const packagePath = join(extension.dir, "package.json");
-    if (existsSync(packagePath)) {
-      try {
-        const name = (JSON.parse(readFileSync(packagePath, "utf8")) as { name?: unknown }).name;
-        if (typeof name === "string" && name) return name;
-      } catch {
-        // Manifest discovery remains authoritative when package metadata is malformed.
-      }
-    }
-    return extension.id;
   }
 }

@@ -23,14 +23,14 @@ export async function createRuntime() {
         const limits = applyLimits(input);
         input.maxRows = limits.maxRows;
         input.timeoutMs = limits.timeoutMs;
-        const extensionId = descriptor.id.split(".", 1)[0];
+        const extensionId = descriptor.source.id;
         const schema = descriptor.inputSchema as { properties?: Record<string, unknown> } | undefined;
         const needsConnection = Boolean(schema?.properties && "connection" in schema.properties) || "connection" in input;
         if (needsConnection) validateConnectionInput(input, config, extensionId);
       },
     },
     createExecutionContext(descriptor: ToolDescriptor, input: Record<string, unknown>) {
-      const extensionId = descriptor.id.split(".", 1)[0];
+      const extensionId = descriptor.source.id;
       const connection = typeof input.connection === "string"
         ? getConnectionConfig(config, extensionId, input.connection)
         : undefined;

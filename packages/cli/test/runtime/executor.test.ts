@@ -8,7 +8,7 @@ const descriptor: ToolDescriptor = {
   risk: "read",
   inputSchema: { type: "object", required: ["value"], properties: { value: { type: "string" } } },
   provider: { id: "native", kind: "native" },
-  source: { id: "test-echo", kind: "extension" },
+  source: { id: "test", kind: "extension" },
 };
 
 function provider(events: string[]): ToolProvider {

@@ -9,10 +9,14 @@ export class ToolRegistry {
   private readonly tools = new Map<string, ToolDescriptor>();
 
   register(descriptors: readonly ToolDescriptor[]): void {
+    const ids = new Set<string>();
     for (const descriptor of descriptors) {
-      if (this.tools.has(descriptor.id)) {
+      if (this.tools.has(descriptor.id) || ids.has(descriptor.id)) {
         throw new RuntimeError("DUPLICATE_TOOL_ID", `duplicate tool '${descriptor.id}'`);
       }
+      ids.add(descriptor.id);
+    }
+    for (const descriptor of descriptors) {
       this.tools.set(descriptor.id, descriptor);
     }
   }

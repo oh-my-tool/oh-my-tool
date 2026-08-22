@@ -11,7 +11,7 @@ const baseDescriptor: ToolDescriptor = {
   risk: "read",
   inputSchema: { type: "object", required: ["value"], properties: { value: { type: "string" } } },
   provider: { id: "native", kind: "native" },
-  source: { id: "test-echo", kind: "extension" },
+  source: { id: "test", kind: "extension" },
 };
 
 function fakeProvider(id = "native", descriptor: ToolDescriptor = { ...baseDescriptor, provider: { id, kind: "native" } }): ToolProvider {
@@ -38,7 +38,7 @@ describe("ToolRuntime", () => {
     const files = new Bun.Glob("**/*.ts").scanSync({ cwd: runtimeRoot, absolute: true });
     for (const file of files) {
       const source = readFileSync(file, "utf8");
-      expect(source).not.toMatch(/from ["'][^"']*cli["']/);
+      expect(source).not.toMatch(/(?:from\s*|import\s*\()\s*["'](?:[^"']*\/)?cli(?:\/|["'])/);
     }
   });
 

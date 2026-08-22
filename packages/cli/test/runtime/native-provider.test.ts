@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { NativeExtensionProvider } from "../../src/runtime/providers/native/provider";
+import { createToolRuntime } from "../../src/runtime/runtime";
 
 const homes: string[] = [];
 
@@ -43,9 +44,10 @@ describe("NativeExtensionProvider", () => {
     expect(descriptors[0]).toMatchObject({
       id: "test.echo",
       provider: { id: "native", kind: "native" },
-      source: { id: "omt-test", kind: "extension" },
+      source: { id: "test", kind: "extension" },
     });
     expect(descriptors[0].inputSchema).toBeDefined();
+    expect(descriptors[0].keywords).toEqual(expect.arrayContaining(["test", "Test", "echo"]));
   });
 
   test("loads the handler only during execute", async () => {
@@ -57,5 +59,21 @@ describe("NativeExtensionProvider", () => {
       secrets: { async get() { return undefined; }, async set() {}, async delete() {} },
     });
     expect(result.data).toEqual({ value: "hello" });
+  });
+
+  test("keeps handler loading and execution context out of runtime discovery", async () => {
+    const contextCalls: string[] = [];
+    const runtime = await createToolRuntime({
+      providers: [new NativeExtensionProvider(fixture(true))],
+      policy: { async preflight() {} },
+      createExecutionContext: async () => {
+        contextCalls.push("context");
+        throw new Error("CONTEXT_CREATED");
+      },
+    });
+
+    expect((await runtime.search("Test"))[0].id).toBe("test.echo");
+    expect((await runtime.describe("test.echo")).id).toBe("test.echo");
+    expect(contextCalls).toEqual([]);
   });
 });

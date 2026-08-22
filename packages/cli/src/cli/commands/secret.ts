@@ -37,7 +37,8 @@ type CmdkeyExec = (args: string[]) => Promise<string>;
 
 async function defaultCmdkeyList(): Promise<string> {
   const proc = Bun.spawn(["cmdkey", "/list"], { stdout: "pipe", stderr: "pipe" });
-  const out = await new Response(proc.stdout).text();
+  const output = await Bun.readableStreamToArrayBuffer(proc.stdout);
+  const out = new TextDecoder().decode(output);
   const code = await proc.exited;
   if (code !== 0) throw new Error(`cmdkey /list exited ${code}`);
   return out;

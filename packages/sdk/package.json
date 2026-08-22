@@ -3,9 +3,23 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Oh My Tool extension SDK",
+  "keywords": ["ai", "agent", "tools", "extensions", "sdk", "bun"],
+  "homepage": "https://github.com/oh-my-tool/oh-my-tool#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oh-my-tool/oh-my-tool.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": "https://github.com/oh-my-tool/oh-my-tool/issues",
   "exports": {
     ".": "./src/index.ts"
   },
   "files": ["src"],
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT"
 }

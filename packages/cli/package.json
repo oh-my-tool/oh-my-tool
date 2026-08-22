@@ -3,6 +3,14 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Oh My Tool CLI - local and enterprise tools for agents",
+  "keywords": ["ai", "agent", "cli", "tools", "extensions", "bun"],
+  "homepage": "https://github.com/oh-my-tool/oh-my-tool#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oh-my-tool/oh-my-tool.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/oh-my-tool/oh-my-tool/issues",
   "bin": {
     "ohmytool": "./bin/ohmytool.ts"
   },
@@ -13,10 +21,13 @@
   ],
   "dependencies": {
     "@clack/prompts": "^1.7.0",
-    "@oh-my-tool/sdk": "workspace:*"
+    "@oh-my-tool/sdk": "0.2.0"
   },
-  "peerDependencies": {
-    "@oh-my-tool/sdk": "^0.2.0"
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "MIT"
 }
