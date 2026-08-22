@@ -35,7 +35,17 @@ jobs:
           if npm view "@oh-my-tool/sdk@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
             echo "@oh-my-tool/sdk@${VERSION} is already published"
           else
-            npm publish --workspace=@oh-my-tool/sdk --access public --provenance
+            if ! npm publish --workspace=@oh-my-tool/sdk --access public --provenance; then
+              for _ in {1..6}; do
+                sleep 10
+                if npm view "@oh-my-tool/sdk@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+                  echo "@oh-my-tool/sdk@${VERSION} was published concurrently"
+                  exit 0
+                fi
+              done
+              exit 1
+            fi
+            echo "@oh-my-tool/sdk@${VERSION} published"
           fi
       - name: Publish CLI when needed
         shell: bash
@@ -44,5 +54,15 @@ jobs:
           if npm view "@oh-my-tool/cli@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
             echo "@oh-my-tool/cli@${VERSION} is already published"
           else
-            npm publish --workspace=@oh-my-tool/cli --access public --provenance
+            if ! npm publish --workspace=@oh-my-tool/cli --access public --provenance; then
+              for _ in {1..6}; do
+                sleep 10
+                if npm view "@oh-my-tool/cli@${VERSION}" version --registry=https://registry.npmjs.org/ >/dev/null 2>&1; then
+                  echo "@oh-my-tool/cli@${VERSION} was published concurrently"
+                  exit 0
+                fi
+              done
+              exit 1
+            fi
+            echo "@oh-my-tool/cli@${VERSION} published"
           fi
