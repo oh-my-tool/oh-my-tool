@@ -51,7 +51,9 @@ function parseStringArray(value: unknown, path: string): string[] {
 }
 
 function assertMcpName(value: string, path: string): void {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value)) invalid(path, "must contain only letters, numbers, underscores, and hyphens");
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(value)) {
+    invalid(path, "must contain only lowercase letters, numbers, underscores, and hyphens");
+  }
 }
 
 function requiredString(value: unknown, path: string): string {
@@ -85,8 +87,13 @@ function parseMcpServer(id: string, value: unknown): McpServerConfig {
   } catch { invalid(`${path}.url`, "must be a valid HTTP(S) URL"); }
   const headers = parseStringMap(raw.headers, `${path}.headers`);
   const secretHeaders = parseStringMap(raw.secretHeaders, `${path}.secretHeaders`);
-  for (const key of Object.keys(headers)) if (key in secretHeaders) invalid(`${path}.headers`, "must not overlap secretHeaders");
-  if ("Authorization" in headers && raw.bearerTokenSecret !== undefined) invalid(`${path}.bearerTokenSecret`, "must not be combined with Authorization");
+  const secretHeaderNames = new Set(Object.keys(secretHeaders).map((key) => key.toLowerCase()));
+  for (const key of Object.keys(headers)) {
+    if (secretHeaderNames.has(key.toLowerCase())) invalid(`${path}.headers`, "must not overlap secretHeaders");
+  }
+  if (Object.keys(headers).some((key) => key.toLowerCase() === "authorization") && raw.bearerTokenSecret !== undefined) {
+    invalid(`${path}.bearerTokenSecret`, "must not be combined with Authorization");
+  }
   const authMode = raw.auth === undefined ? "none" : raw.auth;
   if (authMode === "none") return { enabled, transport: "streamable-http", url, namespace, headers, secretHeaders, auth: { type: "none" } };
   if (authMode === "bearer") return { enabled, transport: "streamable-http", url, namespace, headers, secretHeaders, auth: { type: "bearer", tokenSecret: requiredString(raw.bearerTokenSecret, `${path}.bearerTokenSecret`) } };
@@ -121,7 +128,14 @@ export function loadConfig(homeDir: string): Config {
   }
   const servers: Record<string, McpServerConfig> = {};
   const serverSection = (parsed.mcp as Record<string, unknown> | undefined)?.servers;
-  if (serverSection && typeof serverSection === "object") for (const [id, value] of Object.entries(serverSection)) servers[id] = parseMcpServer(id, value);
+  if (serverSection !== undefined) {
+    if (serverSection === null || typeof serverSection !== "object" || Array.isArray(serverSection)) {
+      invalid("mcp.servers", "must be a table");
+    }
+    for (const [id, value] of Object.entries(serverSection)) {
+      servers[id] = parseMcpServer(id, value);
+    }
+  }
   return { extensions, mcp: { servers } };
 }
 

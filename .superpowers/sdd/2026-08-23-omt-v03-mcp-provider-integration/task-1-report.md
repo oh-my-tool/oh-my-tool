@@ -55,3 +55,39 @@ The pre-existing untracked SDD plan file was not modified or staged.
 
 - `open@11.0.0` is required by the brief but is not used until a later integration task.
 - The repository’s npm registry is configured as `registry.npmmirror.com`; the initial install was blocked by the sandbox’s cache-only network mode and succeeded after approved registry access.
+
+## Fix Round 1
+
+### Reviewer findings addressed
+
+1. MCP IDs and namespaces now use the exact lowercase regex `^[a-z0-9][a-z0-9_-]*$`. Added `rejects uppercase MCP server IDs and namespaces`.
+2. HTTP header duplicate detection and bearer `Authorization` conflict detection now normalize header names with `toLowerCase()`. Added coverage for lowercase/mixed-case Authorization and differently cased overlapping headers.
+3. `mcp.servers` now rejects scalar values and arrays with `MCP_INVALID_CONFIG`. Added coverage for a string, empty array, and string array.
+
+### TDD RED/GREEN evidence
+
+- Command: `bun test packages/cli/test/config.test.ts` after adding the uppercase ID/namespace test.
+  - RED: `24 pass`, `1 fail`; `rejects uppercase MCP server IDs and namespaces` failed because the uppercase namespace was accepted.
+- Command: `bun test packages/cli/test/config.test.ts` after the lowercase regex fix.
+  - GREEN: `25 pass`, `0 fail`, `34 expect() calls`.
+- Command: `bun test packages/cli/test/config.test.ts` after adding case-insensitive header tests.
+  - RED: `25 pass`, `1 fail`; `rejects case-insensitive HTTP header conflicts` failed because a lowercase/mixed-case Authorization or differently cased duplicate header was accepted.
+- Command: `bun test packages/cli/test/config.test.ts` after header normalization.
+  - GREEN: `26 pass`, `0 fail`, `37 expect() calls`.
+- Command: `bun test packages/cli/test/config.test.ts` after adding malformed `mcp.servers` tests.
+  - RED: `26 pass`, `1 fail`; `rejects malformed MCP server collections` failed because malformed collections were accepted.
+- Command: `bun test packages/cli/test/config.test.ts` after validating the server collection shape.
+  - GREEN: `27 pass`, `0 fail`, `40 expect() calls`.
+
+### Final fix-round verification
+
+- Command: `bun test packages/cli/test/config.test.ts`
+  - Output: `27 pass`, `0 fail`, `40 expect() calls`.
+- Command: `npm run typecheck`
+  - Output: `tsc --noEmit` completed with exit code 0.
+- Command: `git diff --check`
+  - Output: completed with exit code 0; no whitespace errors.
+
+### Fix-round concerns
+
+- None beyond the existing Task 1 concerns above.
