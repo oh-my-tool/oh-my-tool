@@ -19,8 +19,10 @@ import { RuntimeError } from "../../errors";
 import {
   createMcpTransport,
   type McpTransport,
+  McpTransportSetupError,
   type OAuthMcpServerConfig,
 } from "./transport";
+import { configuredMcpValues, normalizeMcpError } from "./safe-errors";
 import { createMcpOAuthStore, type SecretMcpOAuthStore } from "./oauth-store";
 import {
   createOAuthCallback,
@@ -35,6 +37,7 @@ export interface McpOAuthProviderOptions {
 
 export interface McpOAuthClientProvider extends OAuthClientProvider {
   readonly redirectUrl: URL;
+  readonly secretValues: readonly string[];
   authorizationUrl(): URL | undefined;
   authorizationState(): string | undefined;
   clearVerifier(): Promise<void>;
@@ -44,6 +47,20 @@ export interface InteractiveOAuthDeps {
   readonly openBrowser: (url: string) => Promise<unknown>;
   readonly createCallback: (port: number) => Promise<OAuthCallback>;
   readonly callbackTimeoutMs: number;
+  readonly createClient: (info: { name: string; version: string }) => InteractiveOAuthClient;
+  readonly createTransport: typeof createMcpTransport;
+}
+
+export interface InteractiveOAuthClient {
+  connect(transport: McpTransport): Promise<void>;
+  close(): Promise<void>;
+}
+
+function oauthAuthRequired(serverId: string): RuntimeError {
+  return new RuntimeError(
+    "MCP_AUTH_REQUIRED",
+    `MCP server '${serverId}' requires user authorization; run 'ohmytool mcp auth ${serverId}'`,
+  );
 }
 
 class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
@@ -53,10 +70,11 @@ class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
 
   constructor(
     private readonly serverId: string,
-    private readonly config: OAuthMcpServerConfig,
+    config: OAuthMcpServerConfig,
     private readonly store: SecretMcpOAuthStore,
     readonly redirectUrl: URL,
     private readonly preRegisteredClient: StoredOAuthClientInformation | undefined,
+    readonly secretValues: readonly string[],
     private readonly interactive: boolean,
   ) {
     this.clientMetadata = {
@@ -74,9 +92,11 @@ class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
     return this.pendingState;
   }
 
-  clientInformation(_ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
+  async clientInformation(_ctx?: OAuthClientInformationContext): Promise<StoredOAuthClientInformation | undefined> {
     if (this.preRegisteredClient !== undefined) return Promise.resolve(this.preRegisteredClient);
-    return this.store.clientInformation();
+    const stored = await this.store.clientInformation();
+    if (!this.interactive && stored === undefined) throw oauthAuthRequired(this.serverId);
+    return stored;
   }
 
   saveClientInformation(info: StoredOAuthClientInformation, ctx?: OAuthClientInformationContext): Promise<void> {
@@ -94,13 +114,7 @@ class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
   async redirectToAuthorization(url: URL): Promise<void> {
     if (!this.interactive) {
       await this.store.clearVerifier();
-      if (this.preRegisteredClient === undefined && this.config.auth.callbackPort === 0) {
-        await this.store.clear("client");
-      }
-      throw new RuntimeError(
-        "MCP_AUTH_REQUIRED",
-        `MCP server '${this.serverId}' requires user authorization; run 'ohmytool mcp auth ${this.serverId}'`,
-      );
+      throw oauthAuthRequired(this.serverId);
     }
     this.pendingAuthorizationUrl = new URL(url);
   }
@@ -155,7 +169,11 @@ export async function createMcpOAuthProvider(
   secrets: SecretStore,
   options: McpOAuthProviderOptions = {},
 ): Promise<McpOAuthClientProvider> {
+  const interactive = options.interactive ?? false;
+  const store = createMcpOAuthStore(serverId, secrets);
+  if (!interactive && await store.tokens() === undefined) throw oauthAuthRequired(serverId);
   let preRegisteredClient: StoredOAuthClientInformation | undefined;
+  const secretValues: string[] = [];
   if (config.auth.clientId !== undefined) {
     let clientSecret: string | undefined;
     if (config.auth.clientSecretSecret !== undefined) {
@@ -166,6 +184,7 @@ export async function createMcpOAuthProvider(
           `MCP server '${serverId}' requires missing secret '${config.auth.clientSecretSecret}'`,
         );
       }
+      secretValues.push(clientSecret);
     }
     preRegisteredClient = {
       client_id: config.auth.clientId,
@@ -175,10 +194,11 @@ export async function createMcpOAuthProvider(
   return new PersistentMcpOAuthProvider(
     serverId,
     config,
-    createMcpOAuthStore(serverId, secrets),
+    store,
     options.redirectUrl ?? defaultRedirectUrl(config),
     preRegisteredClient,
-    options.interactive ?? false,
+    secretValues,
+    interactive,
   );
 }
 
@@ -209,13 +229,37 @@ async function waitForCallback(callback: OAuthCallback, state: string, timeoutMs
   }
 }
 
-async function closeClient(client: Client | undefined): Promise<void> {
+async function closeClient(client: InteractiveOAuthClient | undefined): Promise<void> {
   if (client === undefined) return;
   try {
     await client.close();
   } catch {
     // Cleanup must not mask the authorization result or its original error.
   }
+}
+
+async function oauthCredentialValues(provider: McpOAuthClientProvider | undefined): Promise<string[]> {
+  if (provider === undefined) return [];
+  const values = [...provider.secretValues];
+  try {
+    const storedTokens = await provider.tokens();
+    if (storedTokens !== undefined) {
+      for (const [key, value] of Object.entries(storedTokens)) {
+        if ((key === "access_token" || key === "refresh_token" || key === "id_token") && typeof value === "string") {
+          values.push(value);
+        }
+      }
+    }
+  } catch {
+    // Preserve the original failure; malformed stored credentials already use a secret-free error.
+  }
+  try {
+    const storedClient = await provider.clientInformation();
+    if (typeof storedClient?.client_secret === "string") values.push(storedClient.client_secret);
+  } catch {
+    // Preserve the original failure.
+  }
+  return values;
 }
 
 type FinishableTransport = McpTransport & { finishAuth(callbackParams: URLSearchParams): Promise<void> };
@@ -227,22 +271,27 @@ export async function authorizeMcpServer(
   deps: Partial<InteractiveOAuthDeps> = {},
 ): Promise<{ serverId: string; authorized: true }> {
   const validated = oauthConfig(serverId, config);
+  const secretValues = configuredMcpValues(validated);
   const callbackTimeoutMs = deps.callbackTimeoutMs ?? DEFAULT_OAUTH_CALLBACK_TIMEOUT_MS;
-  const callback = deps.createCallback === undefined
-    ? await createOAuthCallback(validated.auth.callbackPort, callbackTimeoutMs)
-    : await deps.createCallback(validated.auth.callbackPort);
   const openBrowser = deps.openBrowser ?? (async (url: string) => open(url));
+  const createClient = deps.createClient ?? ((info) => new Client(info));
+  const createTransport = deps.createTransport ?? createMcpTransport;
+  let callback: OAuthCallback | undefined;
   let provider: McpOAuthClientProvider | undefined;
-  let firstClient: Client | undefined;
-  let secondClient: Client | undefined;
+  let firstClient: InteractiveOAuthClient | undefined;
+  let secondClient: InteractiveOAuthClient | undefined;
   try {
+    callback = deps.createCallback === undefined
+      ? await createOAuthCallback(validated.auth.callbackPort, callbackTimeoutMs)
+      : await deps.createCallback(validated.auth.callbackPort);
     const activeProvider = await createMcpOAuthProvider(serverId, validated, secrets, {
       redirectUrl: callback.redirectUrl,
       interactive: true,
     });
     provider = activeProvider;
-    firstClient = new Client({ name: "oh-my-tool", version: VERSION });
-    const firstConnection = await createMcpTransport(serverId, validated, secrets, async () => activeProvider);
+    firstClient = createClient({ name: "oh-my-tool", version: VERSION });
+    const firstConnection = await createTransport(serverId, validated, secrets, async () => activeProvider);
+    secretValues.push(...firstConnection.secretValues);
     try {
       await firstClient.connect(firstConnection.transport);
       return { serverId, authorized: true };
@@ -268,14 +317,22 @@ export async function authorizeMcpServer(
     await closeClient(firstClient);
     firstClient = undefined;
 
-    secondClient = new Client({ name: "oh-my-tool", version: VERSION });
-    const secondConnection = await createMcpTransport(serverId, validated, secrets, async () => activeProvider);
+    secondClient = createClient({ name: "oh-my-tool", version: VERSION });
+    const secondConnection = await createTransport(serverId, validated, secrets, async () => activeProvider);
+    secretValues.push(...secondConnection.secretValues);
     await secondClient.connect(secondConnection.transport);
     return { serverId, authorized: true };
+  } catch (cause) {
+    secretValues.push(...await oauthCredentialValues(provider));
+    if (cause instanceof McpTransportSetupError) {
+      secretValues.push(...cause.secretValues);
+      throw normalizeMcpError(serverId, cause.cause, secretValues);
+    }
+    throw normalizeMcpError(serverId, cause, secretValues);
   } finally {
     await closeClient(firstClient);
     await closeClient(secondClient);
-    await callback.close();
+    await callback?.close();
     await provider?.clearVerifier();
   }
 }

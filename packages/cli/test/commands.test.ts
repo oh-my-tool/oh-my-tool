@@ -161,6 +161,22 @@ describe("cli commands", () => {
     expect(JSON.stringify(result)).not.toContain("server-github");
   });
 
+  test("MCP list reports a disabled server without inspecting its invalid transport fields", async () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      "[mcp.servers.old]\nenabled=false\ntransport=\"legacy-sse\"\nurl=123\nauth=\"unsupported\"\n",
+      "utf8",
+    );
+
+    const result = await runMcpList();
+
+    expect(result).toEqual({
+      servers: [
+        { id: "old", enabled: false, transport: "disabled", namespace: "old", auth: "disabled" },
+      ],
+    });
+  });
+
   test("MCP logout deletes only local server-scoped credentials and returns no credential fields", async () => {
     writeOAuthConfig();
     const secrets = memoryStore({

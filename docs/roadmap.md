@@ -44,7 +44,7 @@ Scope:
 - MCP authentication and secret integration
 - end-to-end integration tests
 - OAuth 2.1 authorization-code + PKCE, dynamic/pre-registered clients, and
-  explicit `mcp auth` / `mcp logout` commands
+  explicit `mcp list` / `mcp auth` / `mcp logout` commands
 
 Non-goals:
 

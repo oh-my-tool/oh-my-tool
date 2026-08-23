@@ -1,5 +1,5 @@
 import { Client, type CallToolResult, type Tool } from "@modelcontextprotocol/client";
-import type { McpServerConfig } from "../../../config/config";
+import type { McpEnabledServerConfig } from "../../../config/config";
 import { VERSION } from "../../../version";
 import type { SecretStore } from "@oh-my-tool/sdk";
 import { RuntimeError } from "../../errors";
@@ -10,6 +10,11 @@ import {
   McpTransportSetupError,
 } from "./transport";
 import { createMcpOAuthProvider } from "./oauth-provider";
+import {
+  configuredMcpValues,
+  mcpConnectionError,
+  mcpRequestError,
+} from "./safe-errors";
 
 export interface McpSession {
   listTools(cursor?: string): Promise<{ tools: readonly Tool[]; nextCursor?: string }>;
@@ -17,7 +22,7 @@ export interface McpSession {
   close(): Promise<void>;
 }
 
-export type McpSessionFactory = (serverId: string, config: McpServerConfig, secrets: SecretStore) => Promise<McpSession>;
+export type McpSessionFactory = (serverId: string, config: McpEnabledServerConfig, secrets: SecretStore) => Promise<McpSession>;
 
 export interface McpClient {
   connect(transport: McpTransport): Promise<void>;
@@ -40,34 +45,6 @@ const defaults: McpSessionDependencies = {
   oauthAuthProviderFactory: (serverId, config, secrets) => createMcpOAuthProvider(serverId, config, secrets),
 };
 
-function redact(message: string, secretValues: readonly string[]): string {
-  return secretValues.reduce((result, value) => value.length === 0 ? result : result.split(value).join("[REDACTED]"), message);
-}
-
-function sdkDetails(cause: unknown, secretValues: readonly string[]): string {
-  if (!(cause instanceof Error)) return "unknown MCP error";
-  const error = cause as Error & { code?: unknown };
-  const code = typeof error.code === "string" ? ` (${error.code})` : "";
-  return `${code} ${redact(cause.message, secretValues)}`.trim();
-}
-
-export function mcpConnectionError(serverId: string, cause: unknown, secretValues: readonly string[] = []): RuntimeError {
-  return new RuntimeError("MCP_CONNECTION_FAILED", `MCP server '${serverId}' connection failed: ${sdkDetails(cause, secretValues)}`, undefined, { cause });
-}
-
-export function mcpRequestError(serverId: string, operation: "tools/list" | "tools/call", cause: unknown, secretValues: readonly string[] = []): RuntimeError {
-  const code = operation === "tools/list" ? "MCP_LIST_TOOLS_FAILED" : "MCP_CALL_FAILED";
-  return new RuntimeError(code, `MCP server '${serverId}' ${operation} failed: ${sdkDetails(cause, secretValues)}`, undefined, { cause });
-}
-
-function configuredValues(config: McpServerConfig): string[] {
-  const runtimeConfig = config as unknown as { env?: unknown; headers?: unknown };
-  return [runtimeConfig.env, runtimeConfig.headers].flatMap((values) => {
-    if (values === null || typeof values !== "object" || Array.isArray(values)) return [];
-    return Object.values(values).filter((value): value is string => typeof value === "string");
-  });
-}
-
 function isMissingSecretError(cause: unknown): cause is RuntimeError {
   return cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND";
 }
@@ -88,7 +65,7 @@ async function closeQuietly(transport: McpTransport): Promise<void> {
 
 export async function createMcpSession(
   serverId: string,
-  config: McpServerConfig,
+  config: McpEnabledServerConfig,
   secrets: SecretStore,
   dependencies: McpSessionDependencies = defaults,
 ): Promise<McpSession> {
@@ -96,18 +73,18 @@ export async function createMcpSession(
   try {
     client = dependencies.createClient({ name: "oh-my-tool", version: dependencies.clientVersion });
   } catch (cause) {
-    throw mcpConnectionError(serverId, cause, configuredValues(config));
+    throw mcpConnectionError(serverId, cause, configuredMcpValues(config));
   }
   let connection;
   try {
     connection = await dependencies.createTransport(serverId, config, secrets, dependencies.oauthAuthProviderFactory);
   } catch (cause) {
-    if (isMissingSecretError(cause)) throw cause;
+    if (isMissingSecretError(cause) || isPreservedOAuthError(cause)) throw cause;
     const setupCause = cause instanceof McpTransportSetupError ? cause.cause : cause;
     const secretValues = cause instanceof McpTransportSetupError ? cause.secretValues : [];
-    throw mcpConnectionError(serverId, setupCause, [...configuredValues(config), ...secretValues]);
+    throw mcpConnectionError(serverId, setupCause, [...configuredMcpValues(config), ...secretValues]);
   }
-  const secretValues = [...configuredValues(config), ...connection.secretValues];
+  const secretValues = [...configuredMcpValues(config), ...connection.secretValues];
   try {
     await client.connect(connection.transport);
   } catch (cause) {

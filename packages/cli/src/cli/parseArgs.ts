@@ -40,7 +40,12 @@ export function parseMcpCommand(args: ParsedArgs): ParsedMcpCommand | undefined 
   const action = args.positional[1];
   const serverId = args.positional[2];
   if (action === "list") return args.positional.length === 2 ? { action } : undefined;
-  if ((action !== "auth" && action !== "logout") || serverId === undefined || serverId.length === 0) return undefined;
+  if (
+    (action !== "auth" && action !== "logout") ||
+    serverId === undefined ||
+    serverId.length === 0 ||
+    args.positional.length !== 3
+  ) return undefined;
   return { action, serverId };
 }
 

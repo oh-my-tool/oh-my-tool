@@ -117,6 +117,36 @@ describe("MCP sessions", () => {
     expect(injected).toBe(true);
   });
 
+  test("includes a resolved OAuth client secret in the transport redaction set", async () => {
+    const oauthConfig: OAuthMcpServerConfig = {
+      ...httpConfig,
+      secretHeaders: {},
+      auth: {
+        type: "oauth",
+        scopes: ["tools"],
+        callbackPort: 0,
+        clientId: "pre-registered-client",
+        clientSecretSecret: "mcp:demo:client-secret",
+        tokenEndpointAuthMethod: "client_secret_basic",
+      },
+    };
+    const clientSecret = "resolved-oauth-client-secret";
+    const secrets = memoryStore({
+      "mcp:demo:client-secret": clientSecret,
+      "mcp:demo:oauth:tokens": JSON.stringify({ access_token: "access-token", token_type: "Bearer" }),
+    });
+
+    const connection = await createMcpTransport(
+      "demo",
+      oauthConfig,
+      secrets,
+      createMcpOAuthProvider,
+      transportDependencies(),
+    );
+
+    expect(connection.secretValues).toContain(clientSecret);
+  });
+
   for (const [name, config, secrets, missing] of [
     ["stdio environment secret", stdioConfig, memoryStore(), "mcp:demo:token"],
     ["bearer token", httpConfig, memoryStore({ "mcp:demo:header": "header-value" }), "mcp:demo:token"],

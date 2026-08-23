@@ -25,6 +25,11 @@ describe("parseArgs", () => {
     expect(parseMcpCommand(parseArgs(["mcp", "list"]))).toEqual({ action: "list" });
     expect(parseMcpCommand(parseArgs(["mcp", "list", "github"]))).toBeUndefined();
   });
+
+  test("rejects extra positional arguments for MCP auth and logout", () => {
+    expect(parseMcpCommand(parseArgs(["mcp", "auth", "github", "garbage"]))).toBeUndefined();
+    expect(parseMcpCommand(parseArgs(["mcp", "logout", "github", "garbage"]))).toBeUndefined();
+  });
 });
 
 describe("coerceInput", () => {

@@ -1,6 +1,6 @@
 import { createPaths } from "../paths";
 import { prepareHome } from "../migration";
-import { loadConfig, getConnectionConfig } from "../config/config";
+import { loadConfig, getConnectionConfig, type McpEnabledServerConfig } from "../config/config";
 import { SecretsManager } from "../secrets/secrets";
 import { applyLimits, validateConnectionInput } from "../policy/policy";
 import { NativeExtensionProvider } from "../runtime/providers/native/provider";
@@ -19,7 +19,7 @@ export async function createRuntime() {
   const secrets = new SecretsManager();
   const providers = [new NativeExtensionProvider(paths), ...Object.entries(config.mcp.servers)
     .sort(([a], [b]) => a.localeCompare(b))
-    .filter(([, server]) => server.enabled)
+    .filter((entry): entry is [string, McpEnabledServerConfig] => entry[1].enabled)
     .map(([serverId, server]) => new McpProvider({ serverId, config: server, secrets }))];
   return createToolRuntime({
     providers,

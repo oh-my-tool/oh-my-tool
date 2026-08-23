@@ -12,7 +12,7 @@ export interface ConnectionConfig {
   tls: boolean;
 }
 
-export interface McpCommonServerConfig { readonly enabled: boolean; readonly namespace: string; }
+export interface McpCommonServerConfig { readonly enabled: true; readonly namespace: string; }
 export interface McpStdioServerConfig extends McpCommonServerConfig {
   readonly transport: "stdio"; readonly command: string; readonly args: readonly string[]; readonly cwd?: string;
   readonly env: Readonly<Record<string, string>>; readonly secretEnv: Readonly<Record<string, string>>;
@@ -25,7 +25,13 @@ export type McpHttpAuthConfig =
   | { readonly type: "none" }
   | { readonly type: "bearer"; readonly tokenSecret: string }
   | { readonly type: "oauth"; readonly scopes: readonly string[]; readonly callbackPort: number; readonly clientId?: string; readonly clientSecretSecret?: string; readonly tokenEndpointAuthMethod: "none" | "client_secret_basic" | "client_secret_post" };
-export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig;
+export type McpEnabledServerConfig = McpStdioServerConfig | McpHttpServerConfig;
+export interface McpDisabledServerConfig {
+  readonly enabled: false;
+  readonly namespace: string;
+  readonly transport: "disabled";
+}
+export type McpServerConfig = McpEnabledServerConfig | McpDisabledServerConfig;
 export interface Config {
   extensions: Record<string, { connections: Record<string, ConnectionConfig> }>;
   mcp: { servers: Record<string, McpServerConfig> };
@@ -66,11 +72,12 @@ function parseMcpServer(id: string, value: unknown): McpServerConfig {
   assertMcpName(id, path);
   if (value === null || typeof value !== "object" || Array.isArray(value)) invalid(path, "must be a table");
   const raw = value as Record<string, unknown>;
+  const enabled = raw.enabled === undefined ? true : raw.enabled;
+  if (typeof enabled !== "boolean") invalid(`${path}.enabled`, "must be a boolean");
+  if (!enabled) return { enabled: false, namespace: id, transport: "disabled" };
   const namespace = raw.namespace === undefined ? id : requiredString(raw.namespace, `${path}.namespace`);
   assertMcpName(namespace, `${path}.namespace`);
   if (namespace === "native" || namespace === "mcp") invalid(`${path}.namespace`, "is reserved");
-  const enabled = raw.enabled === undefined ? true : raw.enabled;
-  if (typeof enabled !== "boolean") invalid(`${path}.enabled`, "must be a boolean");
 
   if (raw.transport === "stdio") {
     if (raw.auth !== undefined) invalid(`${path}.auth`, "is only supported for HTTP servers");

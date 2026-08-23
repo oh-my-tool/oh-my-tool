@@ -61,7 +61,7 @@
 - Native provider behavior and the independent `omt-mysql` / `omt-redis` contracts must remain unchanged.
 - Do not inject native-only `maxRows`, `timeoutMs`, or connection policy fields into MCP tool arguments.
 - Existing command names and JSON envelope remain `ohmytool search`, `ohmytool describe`, and `ohmytool run`.
-- MCP server definitions remain managed through `config.toml`; the only MCP management commands in v0.3 are `mcp auth` and `mcp logout` for interactive OAuth credentials.
+- MCP server definitions remain managed through `config.toml`; the v0.3 MCP management commands are `mcp list`, `mcp auth`, and `mcp logout`.
 - Every production behavior change starts with a failing Bun test.
 
 ---
@@ -790,6 +790,7 @@ Do not start a loopback listener from `search`, `describe`, or `run`.
 Add parser and dispatch coverage for:
 
 ```text
+ohmytool mcp list
 ohmytool mcp auth <server-id>
 ohmytool mcp logout <server-id>
 ```
@@ -803,6 +804,7 @@ Reject unknown servers, disabled servers, stdio servers, `auth=none`, and `auth=
 Help text:
 
 ```text
+ohmytool mcp list                       list configured MCP servers
 ohmytool mcp auth <server>              authorize an OAuth MCP server
 ohmytool mcp logout <server>            remove locally stored OAuth credentials
 ```
@@ -1430,6 +1432,7 @@ bearerTokenSecret
 auth = "oauth"
 oauthScopes
 oauthCallbackPort
+ohmytool mcp list
 ohmytool mcp auth
 ohmytool mcp logout
 secretEnv
@@ -1510,6 +1513,7 @@ oauthTokenEndpointAuthMethod = "client_secret_basic"
 Document:
 
 ```powershell
+ohmytool mcp list
 ohmytool mcp auth linear
 ohmytool mcp logout linear
 ```
@@ -1744,6 +1748,7 @@ Do not create an empty commit.
 - [ ] Disabled MCP servers are not connected.
 - [ ] Stdio and Streamable HTTP both pass real transport integration tests.
 - [ ] Bearer tokens, OAuth credentials, client secrets, secret headers, and secret environment variables resolve through `SecretStore`.
+- [ ] `ohmytool mcp list` reports configured servers without connecting or exposing secret references and values.
 - [ ] `ohmytool mcp auth <server-id>` completes authorization code + PKCE through a loopback callback.
 - [ ] `ohmytool mcp logout <server-id>` removes every locally stored OAuth credential for that server without a network call.
 - [ ] OAuth supports dynamic registration and optional pre-registered clients.

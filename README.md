@@ -35,6 +35,7 @@ ohmytool setup                          install the bundled Agent Skill
 ohmytool integrate                       manage Agent Skill integrations
 ohmytool secret set <name>              store a secret without exposing its value
 ohmytool secret list                    list secret names only
+ohmytool mcp list                       list configured MCP servers
 ohmytool mcp auth <server>              authorize an OAuth MCP server
 ohmytool mcp logout <server>            remove that server's OAuth credentials
 ohmytool --version

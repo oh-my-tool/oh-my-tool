@@ -263,6 +263,62 @@ describe("MCP OAuth authorization", () => {
     await expect(fetch(callbackUrl!)).rejects.toBeDefined();
   });
 
+  test("normalizes explicit auth connection failures and redacts every resolved secret", async () => {
+    const fixture = createOAuthMcpFixture();
+    const clientSecret = "resolved-client-secret-never-expose";
+    const gatewaySecret = "resolved-gateway-secret-never-expose";
+    const literalHeader = "literal-header-never-expose";
+    const accessToken = "stored-access-token-never-expose";
+    const config: OAuthMcpServerConfig = {
+      ...fixture.config,
+      headers: { "x-literal": literalHeader },
+      secretHeaders: { "x-gateway-key": "mcp:linear:gateway" },
+      auth: {
+        type: "oauth",
+        scopes: ["tools"],
+        callbackPort: 0,
+        clientId: "pre-registered-client",
+        clientSecretSecret: "mcp:linear:client-secret",
+        tokenEndpointAuthMethod: "client_secret_basic",
+      },
+    };
+    const secrets = memoryStore({
+      "mcp:linear:client-secret": clientSecret,
+      "mcp:linear:gateway": gatewaySecret,
+    });
+    await createMcpOAuthStore("linear", secrets).saveTokens({
+      access_token: accessToken,
+      token_type: "Bearer",
+      issuer: fixture.origin,
+    });
+    const cause = new Error(`connect failed: ${clientSecret} ${gatewaySecret} ${literalHeader} ${accessToken}`);
+    let callbackClosed = false;
+    let error: unknown;
+
+    try {
+      await authorizeMcpServer("linear", config, secrets, {
+        createCallback: async () => ({
+          redirectUrl,
+          async waitForResult() { throw new Error("callback not expected"); },
+          async close() { callbackClosed = true; },
+        }),
+        createClient: () => ({
+          async connect() { throw cause; },
+          async close() {},
+        }),
+      } as any);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toMatchObject({ code: "MCP_CONNECTION_FAILED", cause });
+    expect((error as Error).message).not.toContain(clientSecret);
+    expect((error as Error).message).not.toContain(gatewaySecret);
+    expect((error as Error).message).not.toContain(literalHeader);
+    expect((error as Error).message).not.toContain(accessToken);
+    expect(callbackClosed).toBe(true);
+  });
+
   test("uses official discovery, dynamic registration, PKCE exchange, and a fresh authenticated connection", async () => {
     const fixture = createOAuthMcpFixture();
     const secrets = memoryStore();
@@ -398,6 +454,7 @@ describe("ordinary MCP OAuth sessions", () => {
     });
     expect(await createMcpOAuthStore("linear", secrets).clientInformation()).toBeUndefined();
     expect(await createMcpOAuthStore("linear", secrets).codeVerifier()).toBeUndefined();
+    expect(fixture.registrations).toHaveLength(0);
   });
 
   test("refreshes persisted credentials non-interactively and reconnects", async () => {

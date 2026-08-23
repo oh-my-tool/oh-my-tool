@@ -9,7 +9,7 @@ import {
   getDefaultEnvironment,
   type StdioServerParameters,
 } from "@modelcontextprotocol/client/stdio";
-import type { McpHttpServerConfig, McpServerConfig } from "../../../config/config";
+import type { McpEnabledServerConfig, McpHttpServerConfig } from "../../../config/config";
 import { RuntimeError } from "../../errors";
 import type { SecretStore } from "@oh-my-tool/sdk";
 
@@ -51,6 +51,11 @@ function hasAuthorizationHeader(headers: Readonly<Record<string, string>>): bool
   return Object.keys(headers).some((name) => name.toLowerCase() === "authorization");
 }
 
+function authProviderSecretValues(provider: AuthProvider | OAuthClientProvider): string[] {
+  const values = (provider as { readonly secretValues?: unknown }).secretValues;
+  return Array.isArray(values) && values.every((value) => typeof value === "string") ? [...values] : [];
+}
+
 async function requiredSecret(serverId: string, name: string, secrets: SecretStore): Promise<string> {
   const value = await secrets.get(name);
   if (value === undefined) {
@@ -59,9 +64,17 @@ async function requiredSecret(serverId: string, name: string, secrets: SecretSto
   return value;
 }
 
+function isPreservedOAuthSetupError(cause: unknown): cause is RuntimeError {
+  return cause instanceof RuntimeError && (
+    cause.code === "MCP_SECRET_NOT_FOUND" ||
+    cause.code === "MCP_AUTH_REQUIRED" ||
+    cause.code === "MCP_OAUTH_CREDENTIALS_INVALID"
+  );
+}
+
 export async function createMcpTransport(
   serverId: string,
-  config: McpServerConfig,
+  config: McpEnabledServerConfig,
   secrets: SecretStore,
   oauthAuthProviderFactory?: OAuthAuthProviderFactory,
   dependencies: McpTransportDependencies = defaults,
@@ -111,6 +124,7 @@ export async function createMcpTransport(
         throw new RuntimeError("MCP_OAUTH_PROVIDER_UNAVAILABLE", `MCP server '${serverId}' requires an OAuth auth provider`);
       }
       authProvider = await oauthAuthProviderFactory(serverId, config as OAuthMcpServerConfig, secrets);
+      secretValues.push(...authProviderSecretValues(authProvider));
     }
     return {
       transport: dependencies.createHttpTransport(new URL(config.url), {
@@ -120,7 +134,7 @@ export async function createMcpTransport(
       secretValues: [...Object.values(config.headers), ...secretValues],
     };
   } catch (cause) {
-    if (cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND") throw cause;
+    if (isPreservedOAuthSetupError(cause)) throw cause;
     throw new McpTransportSetupError(cause, secretValues);
   }
 }

@@ -38,7 +38,9 @@ export async function executeRuntimeTool(
   rawInput: Record<string, unknown>,
 ): Promise<ExecutionResult> {
   try {
-    const input = validateInput(deps.descriptor.inputSchema as any, rawInput);
+    const input = validateInput(deps.descriptor.inputSchema as any, rawInput, {
+      applyDefaults: deps.descriptor.provider.kind !== "mcp",
+    });
     await deps.policy.preflight(deps.descriptor, input);
     const context = await deps.createExecutionContext(deps.descriptor, input);
     const result = await deps.provider.execute(deps.descriptor.id, input, context);

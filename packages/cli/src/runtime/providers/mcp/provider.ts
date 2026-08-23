@@ -1,5 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/client";
-import type { McpServerConfig } from "../../../config/config";
+import type { McpEnabledServerConfig } from "../../../config/config";
 import type { SecretStore } from "@oh-my-tool/sdk";
 import type { ExecutionContext, ToolDescriptor, ToolProvider } from "../../provider";
 import type { ToolResult } from "../../result";
@@ -9,7 +9,7 @@ import { normalizeMcpTool } from "./normalize";
 
 export interface McpProviderOptions {
   readonly serverId: string;
-  readonly config: McpServerConfig;
+  readonly config: McpEnabledServerConfig;
   readonly secrets: SecretStore;
   readonly createSession?: McpSessionFactory;
 }

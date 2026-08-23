@@ -21,7 +21,7 @@ export interface McpServerSummary {
   readonly enabled: boolean;
   readonly transport: McpServerConfig["transport"];
   readonly namespace: string;
-  readonly auth: "none" | "bearer" | "oauth";
+  readonly auth: "none" | "bearer" | "oauth" | "disabled";
 }
 
 export interface McpListResult {
@@ -40,7 +40,11 @@ export async function runMcpList(): Promise<McpListResult> {
       enabled: server.enabled,
       transport: server.transport,
       namespace: server.namespace,
-      auth: server.transport === "stdio" ? "none" as const : server.auth.type,
+      auth: server.transport === "disabled"
+        ? "disabled" as const
+        : server.transport === "stdio"
+          ? "none" as const
+          : server.auth.type,
     }));
   return { servers };
 }

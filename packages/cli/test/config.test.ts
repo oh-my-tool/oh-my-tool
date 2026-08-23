@@ -178,6 +178,24 @@ auth = "oauth"
     });
   });
 
+  test("accepts a disabled MCP server without validating transport-specific fields", () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      `[mcp.servers.old]
+enabled = false
+transport = "legacy-sse"
+namespace = "Invalid Namespace"
+url = 123
+auth = "unsupported"
+`,
+      "utf8",
+    );
+
+    const cfg = loadConfig(home);
+
+    expect(cfg.mcp.servers.old).toMatchObject({ enabled: false });
+  });
+
   test("rejects uppercase MCP server IDs and namespaces", () => {
     writeFileSync(join(home, "config.toml"), `[mcp.servers.BadId]\ntransport = "stdio"\ncommand = "bun"\n`, "utf8");
     let error: unknown;

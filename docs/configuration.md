@@ -40,7 +40,8 @@ Enabled MCP servers are discovered during runtime initialization. Native
 manifests remain local and static; MCP discovery connects to each enabled
 server and calls `tools/list`. MCP tools are exposed as `<namespace>.<remote-name>`.
 Set `enabled = false` to temporarily exclude a server. If an enabled server is
-unavailable, runtime initialization fails.
+unavailable, runtime initialization fails. Disabled entries are checked only
+for valid server IDs, so stale transport-specific fields cannot block startup.
 
 ### stdio
 
@@ -106,14 +107,18 @@ oauthTokenEndpointAuthMethod = "client_secret_basic"
 Authorize and remove local credentials with:
 
 ```powershell
+ohmytool mcp list
 ohmytool mcp auth linear
 ohmytool mcp logout linear
 ```
 
+`mcp list` reads configuration without connecting and reports enabled and
+disabled servers without exposing commands, URLs, secret references, or values.
+
 Authorization opens the default browser, listens only on `127.0.0.1`, and
 validates PKCE, state, and issuer before saving credentials in the platform
-secret store. Normal commands never open a browser; `MCP_AUTH_REQUIRED` tells
-the user to run the explicit auth command.
+secret store. Normal commands never open a browser or perform dynamic client
+registration; `MCP_AUTH_REQUIRED` tells the user to run the explicit auth command.
 
 MCP v0.3 exposes tools only. Resources, prompts, serving/northbound MCP,
 device-code, client-credentials, token revocation, and legacy SSE are not
