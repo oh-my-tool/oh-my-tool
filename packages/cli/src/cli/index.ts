@@ -36,7 +36,7 @@ Usage:
   ohmytool --version                   print version
 
 Examples:
-  ohmytool search "查询 mysql 设备数据"
+  ohmytool search "query mysql devices data"
   ohmytool describe mysql.query
   ohmytool run mysql.query connection=iot-test sql="SELECT id FROM device"
   echo '{"connection":"iot-test","sql":"SELECT 1"}' | ohmytool run mysql.query --stdin
