@@ -47,6 +47,26 @@ describe("ohmytool cli e2e", () => {
     expect(code).toBe(0);
     expect(logs.join("\n")).toContain("ohmytool run");
     expect(logs.join("\n")).not.toContain("omt call");
+    expect(logs.join("\n")).toContain("ohmytool mcp auth <server>");
+    expect(logs.join("\n")).toContain("ohmytool mcp logout <server>");
+  });
+
+  test("dispatches MCP auth and logout commands with secret-free output", async () => {
+    const authCode = await main(["mcp", "auth", "linear"], {
+      runMcpAuth: async () => ({ serverId: "linear", authorized: true }),
+      runMcpLogout: async () => ({ serverId: "linear", loggedOut: true }),
+    });
+    const logoutCode = await main(["mcp", "logout", "linear"], {
+      runMcpAuth: async () => ({ serverId: "linear", authorized: true }),
+      runMcpLogout: async () => ({ serverId: "linear", loggedOut: true }),
+    });
+
+    expect(authCode).toBe(0);
+    expect(logoutCode).toBe(0);
+    expect(logs.join("\n")).toContain('"authorized": true');
+    expect(logs.join("\n")).toContain('"loggedOut": true');
+    expect(logs.join("\n")).not.toContain("access_token");
+    expect(logs.join("\n")).not.toContain("client_secret");
   });
 
   test("search prints tools", async () => {

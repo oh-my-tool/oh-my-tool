@@ -1,6 +1,7 @@
 import {
   StreamableHTTPClientTransport,
   type AuthProvider,
+  type OAuthClientProvider,
   type Transport,
 } from "@modelcontextprotocol/client";
 import {
@@ -20,12 +21,12 @@ export type OAuthAuthProviderFactory = (
   serverId: string,
   config: OAuthMcpServerConfig,
   secrets: SecretStore,
-) => Promise<AuthProvider>;
+) => Promise<AuthProvider | OAuthClientProvider>;
 
 export interface McpTransportDependencies {
   getDefaultEnvironment(): Record<string, string>;
   createStdioTransport(options: StdioServerParameters): McpTransport;
-  createHttpTransport(url: URL, options: { authProvider?: AuthProvider; requestInit: { headers: Record<string, string> } }): McpTransport;
+  createHttpTransport(url: URL, options: { authProvider?: AuthProvider | OAuthClientProvider; requestInit: { headers: Record<string, string> } }): McpTransport;
 }
 
 export interface McpTransportConnection {
@@ -99,7 +100,7 @@ export async function createMcpTransport(
   )) as Record<string, string>;
   const secretValues = [...Object.values(resolvedSecretHeaders)];
   try {
-    let authProvider: AuthProvider | undefined;
+    let authProvider: AuthProvider | OAuthClientProvider | undefined;
     if (config.auth.type === "bearer") {
       const auth = config.auth;
       const token = await requiredSecret(serverId, auth.tokenSecret, secrets);

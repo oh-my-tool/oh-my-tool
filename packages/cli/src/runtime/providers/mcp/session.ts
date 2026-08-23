@@ -9,6 +9,7 @@ import {
   type OAuthAuthProviderFactory,
   McpTransportSetupError,
 } from "./transport";
+import { createMcpOAuthProvider } from "./oauth-provider";
 
 export interface McpSession {
   listTools(cursor?: string): Promise<{ tools: readonly Tool[]; nextCursor?: string }>;
@@ -36,6 +37,7 @@ const defaults: McpSessionDependencies = {
   clientVersion: VERSION,
   createClient: (info) => new Client(info),
   createTransport: createMcpTransport,
+  oauthAuthProviderFactory: (serverId, config, secrets) => createMcpOAuthProvider(serverId, config, secrets),
 };
 
 function redact(message: string, secretValues: readonly string[]): string {
@@ -68,6 +70,10 @@ function configuredValues(config: McpServerConfig): string[] {
 
 function isMissingSecretError(cause: unknown): cause is RuntimeError {
   return cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND";
+}
+
+function isAuthRequiredError(cause: unknown): cause is RuntimeError {
+  return cause instanceof RuntimeError && cause.code === "MCP_AUTH_REQUIRED";
 }
 
 async function closeQuietly(transport: McpTransport): Promise<void> {
@@ -104,6 +110,7 @@ export async function createMcpSession(
     await client.connect(connection.transport);
   } catch (cause) {
     await closeQuietly(connection.transport);
+    if (isAuthRequiredError(cause)) throw cause;
     throw mcpConnectionError(serverId, cause, secretValues);
   }
   let closed = false;
