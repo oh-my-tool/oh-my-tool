@@ -51,17 +51,17 @@ export async function createRuntime() {
 
 export async function withRuntime<T>(operation: (runtime: Awaited<ReturnType<typeof createRuntime>>) => Promise<T>): Promise<T> {
   const runtime = await createRuntime();
-  let operationError: unknown;
+  let operationFailed = false;
   try {
     return await operation(runtime);
   } catch (error) {
-    operationError = error;
+    operationFailed = true;
     throw error;
   } finally {
     try {
       await runtime.close();
     } catch (closeError) {
-      if (operationError === undefined) throw closeError;
+      if (!operationFailed) throw closeError;
     }
   }
 }
