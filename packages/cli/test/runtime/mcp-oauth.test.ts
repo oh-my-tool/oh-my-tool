@@ -438,7 +438,8 @@ function createOAuthMcpFixture(options: { authorizationEndpoint?: string } = {})
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
-    async fetch(request) {
+    async fetch(rawRequest) {
+      const request = rawRequest as unknown as { url: string; method: string; headers: { get(name: string): string | null }; json(): Promise<unknown>; text(): Promise<string> };
       const url = new URL(request.url);
       if (url.pathname.includes(".well-known/oauth-protected-resource")) {
         return Response.json({ resource: `${origin}/mcp`, authorization_servers: [origin] });

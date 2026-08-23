@@ -4,6 +4,8 @@ import {
   type OAuthCallback,
 } from "../../src/runtime/providers/mcp/oauth-callback";
 
+type TestResponse = { status: number; text(): Promise<string> };
+
 const callbacks = new Set<OAuthCallback>();
 
 async function callback(timeoutMs = 1_000): Promise<OAuthCallback> {
@@ -27,9 +29,9 @@ describe("MCP OAuth loopback callback", () => {
     expect(value.redirectUrl.toString()).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/oauth\/callback$/);
     const resultPromise = value.waitForResult("expected-state");
 
-    const response = await fetch(callbackUrl(value, "code=authorization-code&state=expected-state&iss=https%3A%2F%2Fauth.example"));
+    const response = await fetch(callbackUrl(value, "code=authorization-code&state=expected-state&iss=https%3A%2F%2Fauth.example")) as unknown as TestResponse;
     const params = await resultPromise;
-    const second = await fetch(callbackUrl(value, "code=second&state=expected-state"));
+    const second = await fetch(callbackUrl(value, "code=second&state=expected-state")) as unknown as TestResponse;
 
     expect(response.status).toBe(200);
     expect(params.get("code")).toBe("authorization-code");
@@ -43,7 +45,7 @@ describe("MCP OAuth loopback callback", () => {
     const resultPromise = value.waitForResult("expected-state");
     const rejection = resultPromise.catch((error: unknown) => error);
 
-    const response = await fetch(callbackUrl(value, "code=secret-code&state=wrong-state&token=secret-token"));
+    const response = await fetch(callbackUrl(value, "code=secret-code&state=wrong-state&token=secret-token")) as unknown as TestResponse;
     expect(await rejection).toMatchObject({ code: "MCP_OAUTH_STATE_MISMATCH" });
     const body = await response.text();
 
@@ -59,7 +61,7 @@ describe("MCP OAuth loopback callback", () => {
     const resultPromise = value.waitForResult("expected-state");
     const rejection = resultPromise.catch((error: unknown) => error);
 
-    const response = await fetch(callbackUrl(value, "error=access_denied&error_description=private-description&state=expected-state"));
+    const response = await fetch(callbackUrl(value, "error=access_denied&error_description=private-description&state=expected-state")) as unknown as TestResponse;
     expect(await rejection).toMatchObject({ code: "MCP_OAUTH_ACCESS_DENIED" });
     const body = await response.text();
 
@@ -73,7 +75,7 @@ describe("MCP OAuth loopback callback", () => {
     const resultPromise = value.waitForResult("expected-state");
     const rejection = resultPromise.catch((error: unknown) => error);
 
-    const response = await fetch(callbackUrl(value, "state=expected-state"));
+    const response = await fetch(callbackUrl(value, "state=expected-state")) as unknown as TestResponse;
     expect(await rejection).toMatchObject({ code: "MCP_OAUTH_AUTHORIZATION_FAILED" });
 
     expect(response.status).toBe(400);
@@ -84,8 +86,8 @@ describe("MCP OAuth loopback callback", () => {
     const value = await callback();
     const resultPromise = value.waitForResult("expected-state");
 
-    const wrong = await fetch(new URL("/wrong", value.redirectUrl));
-    const valid = await fetch(callbackUrl(value, "code=valid&state=expected-state"));
+    const wrong = await fetch(new URL("/wrong", value.redirectUrl)) as unknown as TestResponse;
+    const valid = await fetch(callbackUrl(value, "code=valid&state=expected-state")) as unknown as TestResponse;
 
     expect(wrong.status).toBe(404);
     expect(valid.status).toBe(200);
@@ -96,8 +98,8 @@ describe("MCP OAuth loopback callback", () => {
     const value = await callback();
     const resultPromise = value.waitForResult("expected-state");
 
-    const post = await fetch(value.redirectUrl, { method: "POST" });
-    const valid = await fetch(callbackUrl(value, "code=valid&state=expected-state"));
+    const post = await fetch(value.redirectUrl, { method: "POST" }) as unknown as TestResponse;
+    const valid = await fetch(callbackUrl(value, "code=valid&state=expected-state")) as unknown as TestResponse;
 
     expect(post.status).toBe(405);
     expect(valid.status).toBe(200);

@@ -33,7 +33,8 @@ export async function createOAuthCallback(
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port,
-    fetch(request) {
+    fetch(rawRequest) {
+      const request = rawRequest as unknown as { url: string; method: string };
       const url = new URL(request.url);
       if (url.pathname !== "/oauth/callback") return new Response("Not found", { status: 404 });
       if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });

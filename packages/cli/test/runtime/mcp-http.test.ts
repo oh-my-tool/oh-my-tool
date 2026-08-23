@@ -11,8 +11,9 @@ describe("MCP Streamable HTTP integration", () => {
   test("uses production HTTP transport, auth headers, pagination, and calls", async () => {
     const seen: Headers[] = [];
     let origin = "";
-    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
-      seen.push(request.headers);
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(rawRequest) {
+      const request = rawRequest as unknown as { method: string; headers: { get(name: string): string | null }; json(): Promise<unknown> };
+      seen.push(rawRequest.headers as unknown as Headers);
       if (request.headers.get("authorization") !== "Bearer test-token" || request.headers.get("x-tenant") !== "engineering" || request.headers.get("x-gateway-key") !== "gateway-secret") return new Response(null, { status: 401 });
       if (request.method !== "POST") return new Response(null, { status: 405 });
       const body = await request.json() as { id?: number; method: string; params?: { cursor?: string; arguments?: { value?: string } } };

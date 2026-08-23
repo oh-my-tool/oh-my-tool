@@ -11,7 +11,8 @@ describe("MCP OAuth end-to-end session", () => {
   test("uses persisted OAuth credentials for a fresh non-interactive MCP session", async () => {
     let origin = "";
     let initialized = 0;
-    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(rawRequest) {
+      const request = rawRequest as unknown as { method: string; headers: { get(name: string): string | null }; json(): Promise<unknown> };
       if (request.headers.get("authorization") !== "Bearer oauth-access") return new Response(null, { status: 401, headers: { "www-authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"` } });
       if (request.method !== "POST") return new Response(null, { status: 405 });
       const body = await request.json() as { id?: number; method: string };
