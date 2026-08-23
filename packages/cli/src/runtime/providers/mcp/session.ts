@@ -52,12 +52,12 @@ function sdkDetails(cause: unknown, secretValues: readonly string[]): string {
 }
 
 export function mcpConnectionError(serverId: string, cause: unknown, secretValues: readonly string[] = []): RuntimeError {
-  return new RuntimeError("MCP_CONNECTION_FAILED", `MCP server '${serverId}' connection failed: ${sdkDetails(cause, secretValues)}`, cause);
+  return new RuntimeError("MCP_CONNECTION_FAILED", `MCP server '${serverId}' connection failed: ${sdkDetails(cause, secretValues)}`, undefined, { cause });
 }
 
 export function mcpRequestError(serverId: string, operation: "tools/list" | "tools/call", cause: unknown, secretValues: readonly string[] = []): RuntimeError {
   const code = operation === "tools/list" ? "MCP_LIST_TOOLS_FAILED" : "MCP_CALL_FAILED";
-  return new RuntimeError(code, `MCP server '${serverId}' ${operation} failed: ${sdkDetails(cause, secretValues)}`, cause);
+  return new RuntimeError(code, `MCP server '${serverId}' ${operation} failed: ${sdkDetails(cause, secretValues)}`, undefined, { cause });
 }
 
 function configuredValues(config: McpServerConfig): string[] {

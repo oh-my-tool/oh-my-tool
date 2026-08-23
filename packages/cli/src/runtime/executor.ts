@@ -56,6 +56,9 @@ export async function executeRuntimeTool(
       error: {
         code: typed.code ?? "EXECUTION_FAILED",
         message: typed.message ?? String(error),
+        ...("details" in (typed as object) && (typed as { details?: unknown }).details !== undefined
+          ? { details: (typed as { details: unknown }).details }
+          : {}),
       },
     };
   }

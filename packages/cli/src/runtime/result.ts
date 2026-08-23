@@ -8,5 +8,5 @@ export interface ExecutionResult {
   toolId: string;
   output?: unknown;
   meta?: Record<string, unknown>;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; details?: unknown };
 }
