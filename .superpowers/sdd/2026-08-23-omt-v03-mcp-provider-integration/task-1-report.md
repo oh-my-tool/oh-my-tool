@@ -91,3 +91,25 @@ The pre-existing untracked SDD plan file was not modified or staged.
 ### Fix-round concerns
 
 - None beyond the existing Task 1 concerns above.
+
+## Fix Round 2
+
+### Reviewer finding addressed
+
+Bearer authentication now checks case-insensitive `Authorization` names across both `headers` and `secretHeaders`. A secret header such as `aUtHoRiZaTiOn` now raises `MCP_INVALID_CONFIG` when `bearerTokenSecret` is configured.
+
+### TDD RED/GREEN evidence
+
+- Command: `bun test packages/cli/test/config.test.ts` after adding `rejects bearer auth with Authorization in secretHeaders`.
+  - RED: `27 pass`, `1 fail`; the new test failed because Authorization detection only inspected `headers`.
+- Command: `bun test packages/cli/test/config.test.ts` after checking both header maps.
+  - GREEN: `28 pass`, `0 fail`, `41 expect() calls`.
+
+### Final fix-round-2 verification
+
+- Command: `bun test packages/cli/test/config.test.ts`
+  - Output: `28 pass`, `0 fail`, `41 expect() calls`.
+- Command: `npm run typecheck`
+  - Output: `tsc --noEmit` completed with exit code 0.
+- Command: `git diff --check`
+  - Output: completed with exit code 0; no whitespace errors.

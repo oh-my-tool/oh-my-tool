@@ -91,7 +91,9 @@ function parseMcpServer(id: string, value: unknown): McpServerConfig {
   for (const key of Object.keys(headers)) {
     if (secretHeaderNames.has(key.toLowerCase())) invalid(`${path}.headers`, "must not overlap secretHeaders");
   }
-  if (Object.keys(headers).some((key) => key.toLowerCase() === "authorization") && raw.bearerTokenSecret !== undefined) {
+  const hasAuthorizationHeader = [...Object.keys(headers), ...Object.keys(secretHeaders)]
+    .some((key) => key.toLowerCase() === "authorization");
+  if (hasAuthorizationHeader && raw.bearerTokenSecret !== undefined) {
     invalid(`${path}.bearerTokenSecret`, "must not be combined with Authorization");
   }
   const authMode = raw.auth === undefined ? "none" : raw.auth;

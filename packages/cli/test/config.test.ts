@@ -220,6 +220,17 @@ auth = "oauth"
     expect(error).toMatchObject({ code: "MCP_INVALID_CONFIG" });
   });
 
+  test("rejects bearer auth with Authorization in secretHeaders", () => {
+    writeFileSync(join(home, "config.toml"), `[mcp.servers.test]\ntransport = "streamable-http"\nurl = "https://example.test"\nauth = "bearer"\nbearerTokenSecret = "token"\n[mcp.servers.test.secretHeaders]\naUtHoRiZaTiOn = "secret"\n`, "utf8");
+    let error: unknown;
+    try {
+      loadConfig(home);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({ code: "MCP_INVALID_CONFIG" });
+  });
+
   test("rejects malformed MCP server collections", () => {
     for (const serversValue of ['"not-a-table"', "[]", '["bad"]']) {
       writeFileSync(join(home, "config.toml"), `mcp.servers = ${serversValue}\n`, "utf8");
