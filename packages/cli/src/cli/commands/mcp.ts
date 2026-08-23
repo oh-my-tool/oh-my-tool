@@ -16,6 +16,35 @@ export interface McpCommandDependencies {
   readonly logout?: typeof logoutMcpServer;
 }
 
+export interface McpServerSummary {
+  readonly id: string;
+  readonly enabled: boolean;
+  readonly transport: McpServerConfig["transport"];
+  readonly namespace: string;
+  readonly auth: "none" | "bearer" | "oauth";
+}
+
+export interface McpListResult {
+  readonly servers: McpServerSummary[];
+}
+
+/** List configured MCP servers without connecting to them or exposing secrets. */
+export async function runMcpList(): Promise<McpListResult> {
+  const paths = createPaths();
+  await prepareHome(paths);
+  const config = loadConfig(paths.home);
+  const servers = Object.entries(config.mcp.servers)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([id, server]) => ({
+      id,
+      enabled: server.enabled,
+      transport: server.transport,
+      namespace: server.namespace,
+      auth: server.transport === "stdio" ? "none" as const : server.auth.type,
+    }));
+  return { servers };
+}
+
 function oauthTarget(serverId: string, config: McpServerConfig | undefined): McpHttpServerConfig {
   if (config === undefined || !config.enabled || config.transport !== "streamable-http" || config.auth.type !== "oauth") {
     throw new RuntimeError("MCP_OAUTH_NOT_CONFIGURED", `MCP server '${serverId}' is not an enabled OAuth Streamable HTTP server`);

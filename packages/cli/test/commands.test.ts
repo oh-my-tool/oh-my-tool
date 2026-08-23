@@ -14,6 +14,7 @@ import {
   parseSecretNamesFromCmdkey,
   runMcpAuth,
   runMcpLogout,
+  runMcpList,
 } from "../src/cli/commands";
 import { memoryStore } from "../src/secrets/secrets";
 import { homeDir } from "../src/cli/context";
@@ -139,6 +140,25 @@ describe("cli commands", () => {
     });
 
     expect(result).toEqual({ serverId: "linear", authorized: true });
+  });
+
+  test("MCP list returns sorted, secret-free server summaries without connecting", async () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      "[mcp.servers.zeta]\ntransport=\"streamable-http\"\nurl=\"https://mcp.example/zeta\"\nauth=\"oauth\"\n\n[mcp.servers.github]\ntransport=\"stdio\"\ncommand=\"npx\"\nargs=[\"-y\", \"server-github\"]\nsecretEnv={GITHUB_PERSONAL_ACCESS_TOKEN=\"mcp:github:pat\"}\n",
+      "utf8",
+    );
+
+    const result = await runMcpList();
+
+    expect(result).toEqual({
+      servers: [
+        { id: "github", enabled: true, transport: "stdio", namespace: "github", auth: "none" },
+        { id: "zeta", enabled: true, transport: "streamable-http", namespace: "zeta", auth: "oauth" },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain("mcp:github:pat");
+    expect(JSON.stringify(result)).not.toContain("server-github");
   });
 
   test("MCP logout deletes only local server-scoped credentials and returns no credential fields", async () => {

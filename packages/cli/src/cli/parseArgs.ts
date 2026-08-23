@@ -5,10 +5,9 @@ export interface ParsedArgs {
   options: Record<string, string>;
 }
 
-export interface ParsedMcpCommand {
-  readonly action: "auth" | "logout";
-  readonly serverId: string;
-}
+export type ParsedMcpCommand =
+  | { readonly action: "list" }
+  | { readonly action: "auth" | "logout"; readonly serverId: string };
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];
@@ -40,6 +39,7 @@ export function parseMcpCommand(args: ParsedArgs): ParsedMcpCommand | undefined 
   if (args.positional[0] !== "mcp") return undefined;
   const action = args.positional[1];
   const serverId = args.positional[2];
+  if (action === "list") return args.positional.length === 2 ? { action } : undefined;
   if ((action !== "auth" && action !== "logout") || serverId === undefined || serverId.length === 0) return undefined;
   return { action, serverId };
 }

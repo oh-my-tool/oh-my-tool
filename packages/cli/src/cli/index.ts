@@ -13,7 +13,7 @@ import type { AgentDetection, AgentId, IntegrationResult, IntegrationStatus } fr
 import { AGENT_IDS } from "../integration";
 import { multiselect, isCancel } from "@clack/prompts";
 import { VERSION } from "../version";
-import { runMcpAuth, runMcpLogout } from "./commands/mcp";
+import { runMcpAuth, runMcpList, runMcpLogout } from "./commands/mcp";
 import { RuntimeError } from "../runtime/errors";
 
 const HELP = `Oh My Tool - local and enterprise tools for agents
@@ -27,6 +27,7 @@ Usage:
   ohmytool extension install <path>        install an extension from a local dir
   ohmytool secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
   ohmytool secret list                     list secret names (Windows only, values never shown)
+  ohmytool mcp list                       list configured MCP servers
   ohmytool mcp auth <server>              authorize an OAuth MCP server
   ohmytool mcp logout <server>            remove locally stored OAuth credentials
   ohmytool setup                           detect agents and install the OMT skill
@@ -182,9 +183,10 @@ async function promptForAgents(agents: AgentDetection[]): Promise<AgentId[]> {
 export interface CliDependencies {
   readonly runMcpAuth: typeof runMcpAuth;
   readonly runMcpLogout: typeof runMcpLogout;
+  readonly runMcpList?: typeof runMcpList;
 }
 
-const defaultCliDependencies: CliDependencies = { runMcpAuth, runMcpLogout };
+const defaultCliDependencies: CliDependencies = { runMcpAuth, runMcpLogout, runMcpList };
 
 export async function main(argv: string[], dependencies: CliDependencies = defaultCliDependencies): Promise<number> {
   const parsed = parseArgs(argv);
@@ -242,10 +244,11 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
       case "mcp": {
         const mcp = parseMcpCommand(parsed);
         if (mcp === undefined) {
-          console.error("usage: ohmytool mcp auth <server> | mcp logout <server>");
+          console.error("usage: ohmytool mcp list | mcp auth <server> | mcp logout <server>");
           return 1;
         }
-        if (mcp.action === "auth") print(await dependencies.runMcpAuth(mcp.serverId));
+        if (mcp.action === "list") print(await (dependencies.runMcpList ?? runMcpList)());
+        else if (mcp.action === "auth") print(await dependencies.runMcpAuth(mcp.serverId));
         else print(await dependencies.runMcpLogout(mcp.serverId));
         return 0;
       }
