@@ -8,6 +8,7 @@ import {
 import type { Config } from "../src/config/config";
 
 const config: Config = {
+  mcp: { servers: {} },
   extensions: {
     mysql: {
       connections: {

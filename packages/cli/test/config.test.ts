@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { loadConfig, getConnectionConfig, listConnections } from "../src/config/config";
+import type { McpHttpServerConfig } from "../src/config/config";
 
 let home: string;
 
@@ -71,4 +72,141 @@ describe("config", () => {
     expect(c).not.toHaveProperty("password");
     expect(c).toHaveProperty("secret");
   });
+
+  test("loads an MCP stdio server definition", () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      `${toml}
+[mcp.servers.filesystem]
+transport = "stdio"
+command = "bun"
+args = ["run", "./server.ts"]
+cwd = "C:/workspace"
+namespace = "fs"
+
+[mcp.servers.filesystem.env]
+LOG_LEVEL = "warn"
+
+[mcp.servers.filesystem.secretEnv]
+FILESYSTEM_TOKEN = "mcp:filesystem:token"
+`,
+      "utf8",
+    );
+
+    const cfg = loadConfig(home);
+    expect(cfg.mcp.servers.filesystem).toEqual({
+      enabled: true,
+      transport: "stdio",
+      command: "bun",
+      args: ["run", "./server.ts"],
+      cwd: "C:/workspace",
+      namespace: "fs",
+      env: { LOG_LEVEL: "warn" },
+      secretEnv: { FILESYSTEM_TOKEN: "mcp:filesystem:token" },
+    });
+  });
+
+  test("loads an MCP Streamable HTTP bearer definition", () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      `[mcp.servers.github]
+transport = "streamable-http"
+url = "https://mcp.example.test/mcp"
+auth = "bearer"
+bearerTokenSecret = "mcp:github:token"
+
+[mcp.servers.github.headers]
+X-Tenant = "engineering"
+
+[mcp.servers.github.secretHeaders]
+X-Gateway-Key = "mcp:github:gateway-key"
+`,
+      "utf8",
+    );
+
+    const cfg = loadConfig(home);
+    expect(cfg.mcp.servers.github).toEqual({
+      enabled: true,
+      transport: "streamable-http",
+      url: "https://mcp.example.test/mcp",
+      namespace: "github",
+      headers: { "X-Tenant": "engineering" },
+      secretHeaders: { "X-Gateway-Key": "mcp:github:gateway-key" },
+      auth: { type: "bearer", tokenSecret: "mcp:github:token" },
+    });
+  });
+
+  test("loads an MCP interactive OAuth definition and defaults dynamic registration", () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      `[mcp.servers.linear]
+transport = "streamable-http"
+url = "https://mcp.linear.example/mcp"
+auth = "oauth"
+oauthScopes = ["mcp:read", "mcp:write"]
+oauthCallbackPort = 8765
+oauthClientId = "oh-my-tool"
+oauthClientSecretSecret = "mcp:linear:client-secret"
+oauthTokenEndpointAuthMethod = "client_secret_basic"
+
+[mcp.servers.dynamic]
+transport = "streamable-http"
+url = "https://mcp.dynamic.example/mcp"
+auth = "oauth"
+`,
+      "utf8",
+    );
+
+    const cfg = loadConfig(home);
+    const linear = cfg.mcp.servers.linear;
+    const dynamic = cfg.mcp.servers.dynamic;
+    expect(linear.transport).toBe("streamable-http");
+    expect(dynamic.transport).toBe("streamable-http");
+    expect((linear as McpHttpServerConfig).auth).toEqual({
+      type: "oauth",
+      scopes: ["mcp:read", "mcp:write"],
+      callbackPort: 8765,
+      clientId: "oh-my-tool",
+      clientSecretSecret: "mcp:linear:client-secret",
+      tokenEndpointAuthMethod: "client_secret_basic",
+    });
+    expect((dynamic as McpHttpServerConfig).auth).toEqual({
+      type: "oauth",
+      scopes: [],
+      callbackPort: 0,
+      tokenEndpointAuthMethod: "none",
+    });
+  });
+
+  const invalidMcpConfigs: Array<[string, string]> = [
+    ["unsupported transport", `transport = "socket"`],
+    ["invalid server ID", `[mcp.servers."bad id"]\ntransport = "stdio"\ncommand = "bun"`],
+    ["invalid namespace", `transport = "stdio"\ncommand = "bun"\nnamespace = "bad namespace"`],
+    ["namespace native or mcp", `transport = "stdio"\ncommand = "bun"\nnamespace = "native"`],
+    ["empty stdio command", `transport = "stdio"\ncommand = ""`],
+    ["non-string stdio argument", `transport = "stdio"\ncommand = "bun"\nargs = [1]`],
+    ["invalid or non-http(s) URL", `transport = "streamable-http"\nurl = "ftp://example.test"`],
+    ["unsupported HTTP auth mode", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "basic"`],
+    ["empty bearer secret name", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "bearer"\nbearerTokenSecret = ""`],
+    ["OAuth configured for stdio", `transport = "stdio"\ncommand = "bun"\nauth = "oauth"`],
+    ["callback port outside 0 or 1024..65535", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "oauth"\noauthCallbackPort = 80`],
+    ["client secret without client ID", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "oauth"\noauthClientSecretSecret = "secret"`],
+    ["secret auth method without client secret", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "oauth"\noauthClientId = "client"\noauthTokenEndpointAuthMethod = "client_secret_basic"`],
+    ["client secret with token auth method none", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "oauth"\noauthClientId = "client"\noauthClientSecretSecret = "secret"\noauthTokenEndpointAuthMethod = "none"`],
+    ["same header in headers and secretHeaders", `transport = "streamable-http"\nurl = "https://example.test"\n[mcp.servers.test.headers]\nX-Key = "literal"\n[mcp.servers.test.secretHeaders]\nX-Key = "secret"`],
+    ["Authorization configured together with bearerTokenSecret", `transport = "streamable-http"\nurl = "https://example.test"\nauth = "bearer"\nbearerTokenSecret = "token"\n[mcp.servers.test.headers]\nAuthorization = "literal"`],
+  ];
+
+  for (const [name, server] of invalidMcpConfigs) {
+    test(`rejects MCP config: ${name}`, () => {
+      writeFileSync(join(home, "config.toml"), `[mcp.servers.test]\n${server}\n`, "utf8");
+      let error: unknown;
+      try {
+        loadConfig(home);
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toMatchObject({ code: "MCP_INVALID_CONFIG" });
+    });
+  }
 });
