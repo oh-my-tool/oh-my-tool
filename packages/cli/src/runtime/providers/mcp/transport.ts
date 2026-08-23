@@ -39,6 +39,10 @@ const defaults: McpTransportDependencies = {
   createHttpTransport: (url, options) => new StreamableHTTPClientTransport(url, options),
 };
 
+function hasAuthorizationHeader(headers: Readonly<Record<string, string>>): boolean {
+  return Object.keys(headers).some((name) => name.toLowerCase() === "authorization");
+}
+
 async function requiredSecret(serverId: string, name: string, secrets: SecretStore): Promise<string> {
   const value = await secrets.get(name);
   if (value === undefined) {
@@ -54,6 +58,10 @@ export async function createMcpTransport(
   oauthAuthProviderFactory?: OAuthAuthProviderFactory,
   dependencies: McpTransportDependencies = defaults,
 ): Promise<McpTransportConnection> {
+  const transportKind = (config as { transport: string }).transport;
+  if (transportKind !== "stdio" && transportKind !== "streamable-http") {
+    throw new RuntimeError("MCP_UNSUPPORTED_TRANSPORT", `MCP server '${serverId}' has unsupported transport '${transportKind}'`);
+  }
   if (config.transport === "stdio") {
     const resolvedSecretEnv = Object.fromEntries(await Promise.all(
       Object.entries(config.secretEnv).map(async ([name, secret]) => [name, await requiredSecret(serverId, secret, secrets)]),
@@ -68,6 +76,10 @@ export async function createMcpTransport(
       }),
       secretValues: Object.values(resolvedSecretEnv),
     };
+  }
+
+  if (config.auth.type !== "none" && (hasAuthorizationHeader(config.headers) || hasAuthorizationHeader(config.secretHeaders))) {
+    throw new RuntimeError("MCP_INVALID_CONFIG", `MCP server '${serverId}' must not configure Authorization when ${config.auth.type} auth is enabled`);
   }
 
   const resolvedSecretHeaders = Object.fromEntries(await Promise.all(
@@ -91,6 +103,6 @@ export async function createMcpTransport(
       ...(authProvider === undefined ? {} : { authProvider }),
       requestInit: { headers: { ...config.headers, ...resolvedSecretHeaders } },
     }),
-    secretValues,
+    secretValues: [...Object.values(config.headers), ...secretValues],
   };
 }

@@ -97,6 +97,9 @@ function parseMcpServer(id: string, value: unknown): McpServerConfig {
     invalid(`${path}.bearerTokenSecret`, "must not be combined with Authorization");
   }
   const authMode = raw.auth === undefined ? "none" : raw.auth;
+  if (hasAuthorizationHeader && (authMode === "bearer" || authMode === "oauth")) {
+    invalid(`${path}.headers`, "must not configure Authorization when bearer or oauth auth is enabled");
+  }
   if (authMode === "none") return { enabled, transport: "streamable-http", url, namespace, headers, secretHeaders, auth: { type: "none" } };
   if (authMode === "bearer") return { enabled, transport: "streamable-http", url, namespace, headers, secretHeaders, auth: { type: "bearer", tokenSecret: requiredString(raw.bearerTokenSecret, `${path}.bearerTokenSecret`) } };
   if (authMode !== "oauth") invalid(`${path}.auth`, "must be none, bearer, or oauth");

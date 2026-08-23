@@ -1,5 +1,6 @@
 import { Client, type CallToolResult, type Tool } from "@modelcontextprotocol/client";
 import type { McpServerConfig } from "../../../config/config";
+import { VERSION } from "../../../version";
 import type { SecretStore } from "@oh-my-tool/sdk";
 import { RuntimeError } from "../../errors";
 import {
@@ -31,7 +32,7 @@ export interface McpSessionDependencies {
 }
 
 const defaults: McpSessionDependencies = {
-  clientVersion: "0.2.0",
+  clientVersion: VERSION,
   createClient: (info) => new Client(info),
   createTransport: createMcpTransport,
 };
@@ -48,12 +49,28 @@ function sdkDetails(cause: unknown, secretValues: readonly string[]): string {
 }
 
 export function mcpConnectionError(serverId: string, cause: unknown, secretValues: readonly string[] = []): RuntimeError {
-  return new RuntimeError("MCP_CONNECTION_FAILED", `MCP server '${serverId}' connection failed: ${sdkDetails(cause, secretValues)}`);
+  return new RuntimeError("MCP_CONNECTION_FAILED", `MCP server '${serverId}' connection failed: ${sdkDetails(cause, secretValues)}`, cause);
 }
 
 export function mcpRequestError(serverId: string, operation: "tools/list" | "tools/call", cause: unknown, secretValues: readonly string[] = []): RuntimeError {
   const code = operation === "tools/list" ? "MCP_LIST_TOOLS_FAILED" : "MCP_CALL_FAILED";
-  return new RuntimeError(code, `MCP server '${serverId}' ${operation} failed: ${sdkDetails(cause, secretValues)}`);
+  return new RuntimeError(code, `MCP server '${serverId}' ${operation} failed: ${sdkDetails(cause, secretValues)}`, cause);
+}
+
+function configuredValues(config: McpServerConfig): string[] {
+  return config.transport === "stdio" ? Object.values(config.env) : Object.values(config.headers);
+}
+
+function isMissingSecretError(cause: unknown): cause is RuntimeError {
+  return cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND";
+}
+
+async function closeQuietly(transport: McpTransport): Promise<void> {
+  try {
+    await transport.close();
+  } catch {
+    // The original MCP setup or connection error is more useful than cleanup failure.
+  }
 }
 
 export async function createMcpSession(
@@ -63,11 +80,19 @@ export async function createMcpSession(
   dependencies: McpSessionDependencies = defaults,
 ): Promise<McpSession> {
   const client = dependencies.createClient({ name: "oh-my-tool", version: dependencies.clientVersion });
-  const connection = await dependencies.createTransport(serverId, config, secrets, dependencies.oauthAuthProviderFactory);
+  let connection;
+  try {
+    connection = await dependencies.createTransport(serverId, config, secrets, dependencies.oauthAuthProviderFactory);
+  } catch (cause) {
+    if (isMissingSecretError(cause)) throw cause;
+    throw mcpConnectionError(serverId, cause, configuredValues(config));
+  }
+  const secretValues = [...configuredValues(config), ...connection.secretValues];
   try {
     await client.connect(connection.transport);
   } catch (cause) {
-    throw mcpConnectionError(serverId, cause, connection.secretValues);
+    await closeQuietly(connection.transport);
+    throw mcpConnectionError(serverId, cause, secretValues);
   }
   let closed = false;
   return {
@@ -75,14 +100,14 @@ export async function createMcpSession(
       try {
         return await client.listTools({ ...(cursor === undefined ? {} : { cursor }) });
       } catch (cause) {
-        throw mcpRequestError(serverId, "tools/list", cause, connection.secretValues);
+        throw mcpRequestError(serverId, "tools/list", cause, secretValues);
       }
     },
     async callTool(name, args) {
       try {
         return await client.callTool({ name, arguments: args });
       } catch (cause) {
-        throw mcpRequestError(serverId, "tools/call", cause, connection.secretValues);
+        throw mcpRequestError(serverId, "tools/call", cause, secretValues);
       }
     },
     async close() {

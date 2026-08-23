@@ -4,6 +4,7 @@ import type { McpHttpServerConfig, McpStdioServerConfig } from "../../src/config
 import { createMcpSession, type McpClient, type McpSessionDependencies } from "../../src/runtime/providers/mcp/session";
 import { createMcpTransport, type McpTransport, type McpTransportDependencies, type OAuthMcpServerConfig } from "../../src/runtime/providers/mcp/transport";
 import { memoryStore } from "../../src/secrets/secrets";
+import { RuntimeError } from "../../src/runtime/errors";
 
 const stdioConfig: McpStdioServerConfig = {
   enabled: true,
@@ -104,7 +105,6 @@ describe("MCP sessions", () => {
   });
 
   test("injects the future OAuth auth provider without importing its implementation", async () => {
-    const events: string[] = [];
     const oauthConfig: OAuthMcpServerConfig = { ...httpConfig, auth: { type: "oauth", scopes: ["tools"], callbackPort: 0, tokenEndpointAuthMethod: "none" } };
     const authProvider: AuthProvider = { async token() { return "oauth-token"; } };
     let injected = false;
@@ -122,7 +122,6 @@ describe("MCP sessions", () => {
     ["HTTP secret header", httpConfig, memoryStore({ "mcp:demo:token": "token-value" }), "mcp:demo:header"],
   ] as const) {
     test(`rejects a missing ${name} before connecting`, async () => {
-      const events: string[] = [];
       await expect(createMcpTransport("demo", config, secrets, undefined, transportDependencies())).rejects.toMatchObject({
         code: "MCP_SECRET_NOT_FOUND",
         message: `MCP server 'demo' requires missing secret '${missing}'`,
@@ -148,6 +147,61 @@ describe("MCP sessions", () => {
     }));
     await expect(session.listTools()).rejects.toMatchObject({ code: "MCP_LIST_TOOLS_FAILED", message: expect.not.stringContaining(secret) });
     await session.close();
+  });
+
+  test("normalizes setup failures, retains their cause, and redacts configured literal values", async () => {
+    const literal = "literal-config-value";
+    const cause = new Error(`setup failed: ${literal}`);
+    const config: McpStdioServerConfig = { ...stdioConfig, env: { LITERAL: literal } };
+    await expect(createMcpSession("demo", config, memoryStore(), dependencies([], {
+      createTransport: async () => { throw cause; },
+    }))).rejects.toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.not.stringContaining(literal),
+    });
+  });
+
+  test("redacts literal configured header values from fake SDK errors", async () => {
+    const literal = "literal-header-value";
+    const config: McpHttpServerConfig = { ...httpConfig, headers: { "x-literal": literal } };
+    const cause = new Error(`SDK rejected ${literal}`);
+    await expect(createMcpSession("demo", config, memoryStore(), dependencies([], {
+      createTransport: async () => ({ transport: transport("streamable-http", {}), secretValues: [] }),
+      createClient: () => ({ ...fakeClient([]), async connect() { throw cause; } }),
+    }))).rejects.toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.not.stringContaining(literal),
+    });
+  });
+
+  test("preserves missing-secret errors and never connects the client", async () => {
+    const events: string[] = [];
+    await expect(createMcpSession("demo", stdioConfig, memoryStore(), dependencies(events, {
+      createTransport: (serverId, config, secrets, oauth) => createMcpTransport(serverId, config, secrets, oauth, transportDependencies()),
+    }))).rejects.toMatchObject({ code: "MCP_SECRET_NOT_FOUND" });
+    expect(events).not.toContain("connect:stdio");
+  });
+
+  test("closes a partially created transport after connection failure", async () => {
+    const events: string[] = [];
+    const partial = { ...transport("stdio", {}), async close() { events.push("transport.close"); } } as McpTransport;
+    await expect(createMcpSession("demo", stdioConfig, memoryStore(), dependencies(events, {
+      createTransport: async () => ({ transport: partial, secretValues: [] }),
+      createClient: () => ({ ...fakeClient(events), async connect() { throw new Error("unavailable"); } }),
+    }))).rejects.toMatchObject({ code: "MCP_CONNECTION_FAILED" });
+    expect(events).toContain("transport.close");
+  });
+
+  test("rejects configured Authorization headers for SDK-owned HTTP authentication", async () => {
+    const config: McpHttpServerConfig = { ...httpConfig, headers: { authorization: "literal" } };
+    await expect(createMcpTransport("demo", config, memoryStore({ "mcp:demo:token": "token-value", "mcp:demo:header": "header-value" }), undefined, transportDependencies())).rejects.toMatchObject({ code: "MCP_INVALID_CONFIG" });
+  });
+
+  test("rejects unsupported runtime transport values", async () => {
+    const invalid = { ...stdioConfig, transport: "socket" } as unknown as McpStdioServerConfig;
+    await expect(createMcpTransport("demo", invalid, memoryStore(), undefined, transportDependencies())).rejects.toMatchObject({ code: "MCP_UNSUPPORTED_TRANSPORT" });
   });
 });
 

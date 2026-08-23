@@ -231,6 +231,19 @@ auth = "oauth"
     expect(error).toMatchObject({ code: "MCP_INVALID_CONFIG" });
   });
 
+  test("rejects OAuth auth with case-insensitive Authorization headers", () => {
+    for (const section of ["headers", "secretHeaders"]) {
+      writeFileSync(join(home, "config.toml"), `[mcp.servers.test]\ntransport = "streamable-http"\nurl = "https://example.test"\nauth = "oauth"\n[mcp.servers.test.${section}]\naUtHoRiZaTiOn = "value"\n`, "utf8");
+      let error: unknown;
+      try {
+        loadConfig(home);
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toMatchObject({ code: "MCP_INVALID_CONFIG" });
+    }
+  });
+
   test("rejects malformed MCP server collections", () => {
     for (const serversValue of ['"not-a-table"', "[]", '["bad"]']) {
       writeFileSync(join(home, "config.toml"), `mcp.servers = ${serversValue}\n`, "utf8");
