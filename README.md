@@ -71,6 +71,16 @@ bun packages/cli/bin/ohmytool.ts describe mysql.query
 The CLI package is distributed through npm, but it runs on Bun 1.4 or newer.
 See [the release guide](docs/releasing.md) for maintainer publishing steps.
 
+## Roadmap
+
+- ✅ v0.2 — Provider-independent Tool Runtime
+- 🚧 v0.3 — MCP Provider Integration
+- ⏳ v0.4 — Governance Foundation
+- ⏳ v0.5 — Local Capability Discovery
+- 🔭 Future — Northbound MCP / SDK / Agent integrations
+
+See [Roadmap](docs/roadmap.md) for the product and architecture plan.
+
 ## State and migration
 
 Default state lives at:
