@@ -1,4 +1,4 @@
-import { createRuntime } from "../context";
+import { withRuntime } from "../context";
 
 export interface DescribedTool {
   name: string;
@@ -10,15 +10,16 @@ export interface DescribedTool {
 }
 
 export async function runDescribe(toolName: string): Promise<DescribedTool> {
-  const runtime = await createRuntime();
-  const descriptor = await runtime.describe(toolName);
-  return {
-    name: descriptor.id,
-    description: descriptor.description,
-    risk: descriptor.risk,
-    inputSchema: descriptor.inputSchema,
-    extension: descriptor.source.id,
-    extensionVersion: "unknown",
-  };
+  return withRuntime(async (runtime) => {
+    const descriptor = await runtime.describe(toolName);
+    return {
+      name: descriptor.id,
+      description: descriptor.description,
+      risk: descriptor.risk,
+      inputSchema: descriptor.inputSchema,
+      extension: descriptor.source.id,
+      extensionVersion: "unknown",
+    };
+  });
 }
 
