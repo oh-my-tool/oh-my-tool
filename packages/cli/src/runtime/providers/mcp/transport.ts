@@ -73,16 +73,21 @@ export async function createMcpTransport(
     const resolvedSecretEnv = Object.fromEntries(await Promise.all(
       Object.entries(config.secretEnv).map(async ([name, secret]) => [name, await requiredSecret(serverId, secret, secrets)]),
     )) as Record<string, string>;
-    return {
-      transport: dependencies.createStdioTransport({
-        command: config.command,
-        args: [...config.args],
-        cwd: config.cwd,
-        env: { ...dependencies.getDefaultEnvironment(), ...config.env, ...resolvedSecretEnv },
-        stderr: "pipe",
-      }),
-      secretValues: Object.values(resolvedSecretEnv),
-    };
+    const secretValues = Object.values(resolvedSecretEnv);
+    try {
+      return {
+        transport: dependencies.createStdioTransport({
+          command: config.command,
+          args: [...config.args],
+          cwd: config.cwd,
+          env: { ...dependencies.getDefaultEnvironment(), ...config.env, ...resolvedSecretEnv },
+          stderr: "pipe",
+        }),
+        secretValues,
+      };
+    } catch (cause) {
+      throw new McpTransportSetupError(cause, secretValues);
+    }
   }
 
   if (config.auth.type !== "none" && (hasAuthorizationHeader(config.headers) || hasAuthorizationHeader(config.secretHeaders))) {

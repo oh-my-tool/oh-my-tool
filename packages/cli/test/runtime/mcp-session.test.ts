@@ -216,6 +216,31 @@ describe("MCP sessions", () => {
     expect(JSON.stringify(error)).not.toContain(header);
   });
 
+  test("redacts resolved stdio environment values from transport setup errors", async () => {
+    const token = "resolved-stdio-token";
+    const cause = new Error(`stdio transport rejected ${token}`);
+    let error: unknown;
+    try {
+      await createMcpSession("demo", stdioConfig, memoryStore({ "mcp:demo:token": token }), dependencies([], {
+        createTransport: (serverId, config, secrets, oauth) => createMcpTransport(
+          serverId,
+          config,
+          secrets,
+          oauth,
+          transportDependencies(() => { throw cause; }),
+        ),
+      }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.not.stringContaining(token),
+    });
+    expect(JSON.stringify(error)).not.toContain(token);
+  });
+
   test("redacts literal configured header values from fake SDK errors", async () => {
     const literal = "literal-header-value";
     const config: McpHttpServerConfig = { ...httpConfig, headers: { "x-literal": literal } };
