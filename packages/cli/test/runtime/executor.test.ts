@@ -71,4 +71,40 @@ describe("executeRuntimeTool", () => {
     });
     expect(events).toEqual(["policy", "context", "provider.execute"]);
   });
+
+  test("validates MCP input without applying JSON Schema defaults", async () => {
+    const mcpDescriptor: ToolDescriptor = {
+      ...descriptor,
+      id: "demo.echo",
+      inputSchema: {
+        type: "object",
+        properties: { mode: { type: "string", default: "safe" } },
+      },
+      provider: { id: "mcp:demo", kind: "mcp" },
+      source: { id: "demo", kind: "mcp-server" },
+    };
+    let received: unknown;
+
+    const result = await executeRuntimeTool({
+      descriptor: mcpDescriptor,
+      provider: {
+        id: "mcp:demo",
+        kind: "mcp",
+        async listTools() { return [mcpDescriptor]; },
+        async execute(_toolId, input) {
+          received = input;
+          return { data: input };
+        },
+      },
+      policy: { async preflight() {} },
+      createExecutionContext: () => ({
+        logger: { debug() {}, info() {}, warn() {}, error() {} },
+        config: {},
+        secrets: { async get() { return undefined; }, async set() {}, async delete() {} },
+      }),
+    }, {});
+
+    expect(result).toMatchObject({ ok: true, output: {} });
+    expect(received).toEqual({});
+  });
 });

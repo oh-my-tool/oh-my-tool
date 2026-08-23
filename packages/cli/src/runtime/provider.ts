@@ -24,6 +24,7 @@ export interface ToolProvider {
   readonly kind: string;
   listTools(): Promise<readonly ToolDescriptor[]>;
   execute(toolId: string, input: unknown, context: ExecutionContext): Promise<ToolResult>;
+  close?(): Promise<void>;
 }
 
 export type { ToolResult } from "./result";

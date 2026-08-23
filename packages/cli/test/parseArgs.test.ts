@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseArgs, coerceInput } from "../src/cli/parseArgs";
+import { parseArgs, parseMcpCommand, coerceInput } from "../src/cli/parseArgs";
 
 describe("parseArgs", () => {
   test("splits key=value, flags and positionals", () => {
@@ -19,6 +19,16 @@ describe("parseArgs", () => {
     const a = parseArgs(["integrate", "--agents=codex,omp", "--yes", "--force"]);
     expect(a.options).toEqual({ agents: "codex,omp" });
     expect(a.flags).toEqual(["yes", "force"]);
+  });
+
+  test("parses MCP list without a server id", () => {
+    expect(parseMcpCommand(parseArgs(["mcp", "list"]))).toEqual({ action: "list" });
+    expect(parseMcpCommand(parseArgs(["mcp", "list", "github"]))).toBeUndefined();
+  });
+
+  test("rejects extra positional arguments for MCP auth and logout", () => {
+    expect(parseMcpCommand(parseArgs(["mcp", "auth", "github", "garbage"]))).toBeUndefined();
+    expect(parseMcpCommand(parseArgs(["mcp", "logout", "github", "garbage"]))).toBeUndefined();
   });
 });
 

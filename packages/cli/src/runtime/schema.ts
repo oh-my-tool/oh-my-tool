@@ -33,13 +33,23 @@ function checkType(value: unknown, schema: Schema, path: string): void {
   }
 }
 
-export function validateInput(schema: Schema | undefined, input: Record<string, unknown>): Record<string, unknown> {
+export interface ValidateInputOptions {
+  readonly applyDefaults?: boolean;
+}
+
+export function validateInput(
+  schema: Schema | undefined,
+  input: Record<string, unknown>,
+  options: ValidateInputOptions = {},
+): Record<string, unknown> {
   if (!schema) return { ...input };
   const out: Record<string, unknown> = { ...input };
   const props = schema.properties ?? {};
-  for (const key of Object.keys(props)) {
-    const prop = props[key];
-    if (out[key] === undefined && prop.default !== undefined) out[key] = prop.default;
+  if (options.applyDefaults !== false) {
+    for (const key of Object.keys(props)) {
+      const prop = props[key];
+      if (out[key] === undefined && prop.default !== undefined) out[key] = prop.default;
+    }
   }
   for (const key of schema.required ?? []) {
     if (out[key] === undefined || out[key] === null) throw new OmtError("INVALID_INPUT", `missing required field '${key}'`);

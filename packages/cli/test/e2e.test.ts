@@ -36,10 +36,11 @@ describe("ohmytool cli e2e", () => {
   });
 
   test("--version prints version", async () => {
+    const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
     const code = await main(["--version"]);
     expect(code).toBe(0);
     expect(logs[0]).toContain('"name": "ohmytool"');
-    expect(logs[0]).toContain("0.2.0");
+    expect(logs[0]).toContain(pkg.version);
   });
 
   test("help advertises ohmytool run and not omt call", async () => {
@@ -47,6 +48,43 @@ describe("ohmytool cli e2e", () => {
     expect(code).toBe(0);
     expect(logs.join("\n")).toContain("ohmytool run");
     expect(logs.join("\n")).not.toContain("omt call");
+    expect(logs.join("\n")).toContain("ohmytool mcp auth <server>");
+    expect(logs.join("\n")).toContain("ohmytool mcp logout <server>");
+    expect(logs.join("\n")).toContain("ohmytool mcp list");
+  });
+
+  test("mcp list prints configured servers without secret values", async () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      "[mcp.servers.github]\ntransport=\"stdio\"\ncommand=\"npx\"\nargs=[\"-y\", \"server-github\"]\nsecretEnv={GITHUB_PERSONAL_ACCESS_TOKEN=\"mcp:github:pat\"}\n",
+      "utf8",
+    );
+
+    const code = await main(["mcp", "list"]);
+
+    expect(code).toBe(0);
+    expect(logs[0]).toContain('"id": "github"');
+    expect(logs[0]).toContain('"transport": "stdio"');
+    expect(logs[0]).not.toContain("mcp:github:pat");
+    expect(logs[0]).not.toContain("server-github");
+  });
+
+  test("dispatches MCP auth and logout commands with secret-free output", async () => {
+    const authCode = await main(["mcp", "auth", "linear"], {
+      runMcpAuth: async () => ({ serverId: "linear", authorized: true }),
+      runMcpLogout: async () => ({ serverId: "linear", loggedOut: true }),
+    });
+    const logoutCode = await main(["mcp", "logout", "linear"], {
+      runMcpAuth: async () => ({ serverId: "linear", authorized: true }),
+      runMcpLogout: async () => ({ serverId: "linear", loggedOut: true }),
+    });
+
+    expect(authCode).toBe(0);
+    expect(logoutCode).toBe(0);
+    expect(logs.join("\n")).toContain('"authorized": true');
+    expect(logs.join("\n")).toContain('"loggedOut": true');
+    expect(logs.join("\n")).not.toContain("access_token");
+    expect(logs.join("\n")).not.toContain("client_secret");
   });
 
   test("search prints tools", async () => {

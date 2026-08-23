@@ -1,5 +1,5 @@
 import { coerceInput } from "../parseArgs";
-import { createRuntime } from "../context";
+import { withRuntime } from "../context";
 import type { OmtResult } from "../../core/result";
 
 export async function runTool(
@@ -13,12 +13,13 @@ export async function runTool(
   } else {
     input = coerceInput(keyValues);
   }
-  const runtime = await createRuntime();
-  const result = await runtime.run(toolName, input);
-  if (result.ok) {
-    return { ok: true, tool: toolName, data: result.output, meta: result.meta ?? {} };
-  }
-  return { ok: false, tool: toolName, error: result.error ?? { code: "EXECUTION_FAILED", message: "execution failed" } };
+  return withRuntime(async (runtime) => {
+    const result = await runtime.run(toolName, input);
+    if (result.ok) {
+      return { ok: true, tool: toolName, data: result.output, meta: result.meta ?? {} };
+    }
+    return { ok: false, tool: toolName, error: result.error ?? { code: "EXECUTION_FAILED", message: "execution failed" } };
+  });
 }
 
 function readStdinJson(): Promise<Record<string, unknown>> {

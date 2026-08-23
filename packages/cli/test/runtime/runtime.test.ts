@@ -33,6 +33,29 @@ const options = {
 };
 
 describe("ToolRuntime", () => {
+  test("closes providers in reverse order, attempts all, and is idempotent", async () => {
+    const events: string[] = [];
+    const first = { ...fakeProvider("first", { ...baseDescriptor, provider: { id: "first", kind: "native" } }), async close() { events.push("first"); } };
+    const second = { ...fakeProvider("second", { ...baseDescriptor, id: "second.echo", provider: { id: "second", kind: "native" } }), async close() { events.push("second"); throw new Error("close failed"); } };
+    const runtime = await createToolRuntime({ ...options, providers: [first, second] });
+    await expect(runtime.close()).rejects.toThrow("close failed");
+    await expect(runtime.close()).rejects.toThrow("close failed");
+    expect(events).toEqual(["second", "first"]);
+  });
+
+  test("cleans up every provider when discovery fails", async () => {
+    const events: string[] = [];
+    const first = { ...fakeProvider("first", { ...baseDescriptor, provider: { id: "first", kind: "native" } }), async close() { events.push("first"); } };
+    const second: ToolProvider = {
+      id: "second", kind: "native",
+      async listTools() { throw new Error("discovery failed"); },
+      async execute() { return { data: {} }; },
+      async close() { events.push("second"); },
+    };
+    await expect(createToolRuntime({ ...options, providers: [first, second] })).rejects.toThrow("discovery failed");
+    expect(events).toEqual(["second", "first"]);
+  });
+
   test("runtime modules do not import CLI modules", () => {
     const runtimeRoot = join(import.meta.dir, "../../src/runtime");
     const files = new Bun.Glob("**/*.ts").scanSync({ cwd: runtimeRoot, absolute: true });

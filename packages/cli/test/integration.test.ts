@@ -44,6 +44,19 @@ const fakeCommands = (...names: string[]) => async (candidates: string[]) =>
   candidates.find((name) => names.includes(name));
 
 describe("agent integration", () => {
+  test("documents the implemented MCP v0.3 surface", async () => {
+    const docs = [
+      await Bun.file(new URL("../../../docs/configuration.md", import.meta.url)).text(),
+      await Bun.file(new URL("../assets/skills/oh-my-tool/SKILL.md", import.meta.url)).text(),
+    ].join("\n");
+    for (const term of ["[mcp.servers.filesystem]", "transport = \"stdio\"", "transport = \"streamable-http\"", "namespace", "auth = \"bearer\"", "bearerTokenSecret", "auth = \"oauth\"", "oauthScopes", "oauthCallbackPort", "ohmytool mcp auth", "ohmytool mcp logout", "secretEnv"]) {
+      expect(docs).toContain(term);
+    }
+    expect(docs).not.toContain("MCP resources are implemented");
+    expect(docs).not.toContain("device-code auth is implemented");
+    expect(docs).not.toContain("legacy SSE is implemented");
+  });
+
   test("bundled Skill documents the canonical ohmytool search-describe-run protocol", () => {
     const skill = readFileSync(join(import.meta.dir, "../assets/skills/oh-my-tool/SKILL.md"), "utf8");
     expect(skill).toContain("ohmytool search");

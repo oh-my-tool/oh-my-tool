@@ -19,7 +19,9 @@ interface RuntimeState {
 }
 
 export class ToolRuntime {
-  constructor(private readonly state: RuntimeState) {}
+  private closePromise?: Promise<void>;
+
+  constructor(private readonly state: RuntimeState, private readonly registeredProviders: readonly ToolProvider[] = []) {}
 
   search(query: string): Promise<ToolSearchResult[]> {
     return Promise.resolve(this.state.tools.search(query));
@@ -44,28 +46,52 @@ export class ToolRuntime {
       createExecutionContext: this.state.createExecutionContext,
     }, (input ?? {}) as Record<string, unknown>);
   }
+
+  close(): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    this.closePromise = (async () => {
+      const errors: unknown[] = [];
+      for (const provider of [...this.registeredProviders].reverse()) {
+        if (!provider.close) continue;
+        try { await provider.close(); } catch (error) { errors.push(error); }
+      }
+      if (errors.length > 0) throw errors[0];
+    })();
+    return this.closePromise;
+  }
+}
+
+async function closeProviders(providers: readonly ToolProvider[]): Promise<void> {
+  await Promise.allSettled([...providers].reverse().map(async (provider) => {
+    if (provider.close) await provider.close();
+  }));
 }
 
 export async function createToolRuntime(options: ToolRuntimeOptions): Promise<ToolRuntime> {
   const providers = new ProviderRegistry();
   const tools = new ToolRegistry();
-  for (const provider of options.providers) {
-    providers.register(provider);
-    const descriptors = await provider.listTools();
-    for (const descriptor of descriptors) {
-      if (descriptor.provider.id !== provider.id || descriptor.provider.kind !== provider.kind) {
-        throw new RuntimeError(
-          "PROVIDER_DESCRIPTOR_MISMATCH",
-          `tool '${descriptor.id}' does not identify provider '${provider.id}/${provider.kind}'`,
-        );
+  try {
+    for (const provider of options.providers) {
+      providers.register(provider);
+      const descriptors = await provider.listTools();
+      for (const descriptor of descriptors) {
+        if (descriptor.provider.id !== provider.id || descriptor.provider.kind !== provider.kind) {
+          throw new RuntimeError(
+            "PROVIDER_DESCRIPTOR_MISMATCH",
+            `tool '${descriptor.id}' does not identify provider '${provider.id}/${provider.kind}'`,
+          );
+        }
       }
+      tools.register(descriptors);
     }
-    tools.register(descriptors);
+  } catch (error) {
+    await closeProviders(options.providers);
+    throw error;
   }
   return new ToolRuntime({
     providers,
     tools,
     policy: options.policy,
     createExecutionContext: options.createExecutionContext,
-  });
+  }, options.providers);
 }

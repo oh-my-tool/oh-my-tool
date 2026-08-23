@@ -27,7 +27,7 @@ Non-goals:
 Exit criteria: agents can use `ohmytool search`, `ohmytool describe`, and
 `ohmytool run` without depending on a concrete database or cache implementation.
 
-## Next — v0.3 MCP Provider Integration
+## Now — v0.3 MCP Provider Integration (in progress)
 
 Goal: allow OMT to consume existing MCP servers as first-class `ToolProvider`s.
 
@@ -43,6 +43,8 @@ Scope:
 - tool namespaces and collision handling
 - MCP authentication and secret integration
 - end-to-end integration tests
+- OAuth 2.1 authorization-code + PKCE, dynamic/pre-registered clients, and
+  explicit `mcp list` / `mcp auth` / `mcp logout` commands
 
 Non-goals:
 
@@ -51,7 +53,9 @@ Non-goals:
 - GUI or workflow orchestration
 
 Exit criteria: `ohmytool search`, `ohmytool describe`, and `ohmytool run` work
-the same way for native and MCP-backed tools.
+the same way for native and MCP-backed tools. The implementation is tracked in
+[`docs/superpowers/plans/2026-08-23-omt-v03-mcp-provider-integration.md`](superpowers/plans/2026-08-23-omt-v03-mcp-provider-integration.md);
+this section changes to released only after the final release gates pass.
 
 ## Planned — v0.4 Governance Foundation
 

@@ -1,9 +1,10 @@
 import { createPaths } from "../paths";
 import { prepareHome } from "../migration";
-import { loadConfig, getConnectionConfig } from "../config/config";
+import { loadConfig, getConnectionConfig, type McpEnabledServerConfig } from "../config/config";
 import { SecretsManager } from "../secrets/secrets";
 import { applyLimits, validateConnectionInput } from "../policy/policy";
 import { NativeExtensionProvider } from "../runtime/providers/native/provider";
+import { McpProvider } from "../runtime/providers/mcp/provider";
 import { createToolRuntime } from "../runtime/runtime";
 import type { ToolDescriptor } from "../runtime/provider";
 
@@ -16,10 +17,15 @@ export async function createRuntime() {
   await prepareHome(paths);
   const config = loadConfig(paths.home);
   const secrets = new SecretsManager();
+  const providers = [new NativeExtensionProvider(paths), ...Object.entries(config.mcp.servers)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter((entry): entry is [string, McpEnabledServerConfig] => entry[1].enabled)
+    .map(([serverId, server]) => new McpProvider({ serverId, config: server, secrets }))];
   return createToolRuntime({
-    providers: [new NativeExtensionProvider(paths)],
+    providers,
     policy: {
       preflight(descriptor, input) {
+        if (descriptor.provider.kind !== "native") return;
         const limits = applyLimits(input);
         input.maxRows = limits.maxRows;
         input.timeoutMs = limits.timeoutMs;
@@ -41,4 +47,21 @@ export async function createRuntime() {
       };
     },
   });
+}
+
+export async function withRuntime<T>(operation: (runtime: Awaited<ReturnType<typeof createRuntime>>) => Promise<T>): Promise<T> {
+  const runtime = await createRuntime();
+  let operationFailed = false;
+  try {
+    return await operation(runtime);
+  } catch (error) {
+    operationFailed = true;
+    throw error;
+  } finally {
+    try {
+      await runtime.close();
+    } catch (closeError) {
+      if (!operationFailed) throw closeError;
+    }
+  }
 }

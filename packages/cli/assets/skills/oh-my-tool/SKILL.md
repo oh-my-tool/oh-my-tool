@@ -5,7 +5,8 @@ description: Discover and invoke local, development, and enterprise tools throug
 
 # Oh My Tool — The Agent Tool Runtime
 
-Use the canonical `ohmytool` CLI to discover and execute tools exposed by installed native extensions.
+Use the canonical `ohmytool` CLI to discover and execute tools exposed by
+installed native extensions and enabled MCP servers.
 
 ## When to use
 
@@ -29,7 +30,8 @@ When you do not know the exact tool ID:
 ohmytool search "<what you need to do>"
 ```
 
-Search returns lightweight summary metadata and does not load handlers or access secrets.
+Search returns lightweight summary metadata. Native discovery reads manifests;
+MCP discovery connects to enabled servers and obtains `tools/list`.
 
 ### 2. Describe
 
@@ -43,7 +45,8 @@ Use the returned schema, constraints, risk level, and configuration requirements
 
 ### 3. Run
 
-Execute the selected tool through the runtime:
+Execute the selected tool through the runtime. Use the exact namespaced ID
+returned by search/describe for MCP tools:
 
 ```bash
 ohmytool run <tool-name> key=value
@@ -62,6 +65,11 @@ echo '{"connection":"iot-test","sql":"SELECT 1"}' | ohmytool run mysql.query --s
 - Do not guess tool arguments; use `ohmytool describe`.
 - Do not guess connection names, endpoints, credentials, tokens, or authentication details.
 - Never request or expose secrets managed by Oh My Tool.
+- Provider origin does not change the `search → describe → run` sequence.
+- Never place bearer tokens, OAuth tokens, authorization codes, client secrets,
+  or secret environment values in tool arguments.
+- If a command returns `MCP_AUTH_REQUIRED`, ask the user to run or approve
+  `ohmytool mcp auth <server-id>`; never collect credentials in chat.
 - Respect tool risk levels, policy restrictions, and environment restrictions.
 - Prefer the smallest and safest tool that can complete the task.
 - Treat runtime results as structured tool output and use them to continue the task.

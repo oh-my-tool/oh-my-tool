@@ -2,7 +2,7 @@
 
 Oh My Tool is an extensible, local-first tool runtime for AI agents. It gives Codex, OMP, Pi, Qoder, Cursor, Claude Code, and other agents one consistent way to discover and execute tools from native extensions.
 
-Current v0.2 architecture:
+Current architecture:
 
 ```text
 Agent
@@ -12,8 +12,8 @@ ohmytool
 ToolRuntime
   ↓
 ToolProvider
-  ↓
-NativeExtensionProvider
+  ├─ NativeExtensionProvider
+  └─ McpProvider
   ↓
 Independent Extensions
 ```
@@ -35,6 +35,9 @@ ohmytool setup                          install the bundled Agent Skill
 ohmytool integrate                       manage Agent Skill integrations
 ohmytool secret set <name>              store a secret without exposing its value
 ohmytool secret list                    list secret names only
+ohmytool mcp list                       list configured MCP servers
+ohmytool mcp auth <server>              authorize an OAuth MCP server
+ohmytool mcp logout <server>            remove that server's OAuth credentials
 ohmytool --version
 ```
 
@@ -44,7 +47,11 @@ Agent protocol:
 ohmytool search → ohmytool describe → ohmytool run
 ```
 
-`search` and `describe` do not load handlers, access secrets, connect to databases, or start processes. `run` performs schema validation and policy preflight before creating the execution context and invoking a provider.
+For native extensions, `search` and `describe` read static manifests only. For
+MCP, runtime initialization connects to every enabled server to discover
+`tools/list`; MCP tools are exposed as namespaced IDs such as
+`github.create_issue`. `run` performs schema validation and policy preflight
+before invoking the selected provider.
 
 ## Quick start
 
@@ -102,6 +109,7 @@ oh-my-tool/
 │       ├── assets/skills/oh-my-tool/
 │       ├── src/runtime/                         internal ToolRuntime
 │       ├── src/runtime/providers/native/        NativeExtensionProvider
+│       ├── src/runtime/providers/mcp/           MCP, transport, and OAuth code
 │       ├── src/extension/                       manifest/discovery/install/loader
 │       ├── src/policy/                          policy preflight
 │       └── src/secrets/                         SecretStore integration
@@ -153,7 +161,7 @@ Implemented in this slice:
 
 Deferred intentionally:
 
-- MCP provider and MCP host features
+- MCP resources, prompts, and northbound/server features
 - JDK/local environment discovery
 - workflow or agent orchestration
 - daemon, GUI, marketplace, approval UI, and public runtime package
