@@ -231,16 +231,18 @@ export async function authorizeMcpServer(
   const callback = deps.createCallback === undefined
     ? await createOAuthCallback(validated.auth.callbackPort, callbackTimeoutMs)
     : await deps.createCallback(validated.auth.callbackPort);
-  const provider = await createMcpOAuthProvider(serverId, validated, secrets, {
-    redirectUrl: callback.redirectUrl,
-    interactive: true,
-  });
   const openBrowser = deps.openBrowser ?? (async (url: string) => open(url));
+  let provider: McpOAuthClientProvider | undefined;
   let firstClient: Client | undefined;
   let secondClient: Client | undefined;
   try {
+    const activeProvider = await createMcpOAuthProvider(serverId, validated, secrets, {
+      redirectUrl: callback.redirectUrl,
+      interactive: true,
+    });
+    provider = activeProvider;
     firstClient = new Client({ name: "oh-my-tool", version: VERSION });
-    const firstConnection = await createMcpTransport(serverId, validated, secrets, async () => provider);
+    const firstConnection = await createMcpTransport(serverId, validated, secrets, async () => activeProvider);
     try {
       await firstClient.connect(firstConnection.transport);
       return { serverId, authorized: true };
@@ -248,8 +250,8 @@ export async function authorizeMcpServer(
       if (!(cause instanceof UnauthorizedError)) throw cause;
     }
 
-    const authorizationUrl = provider.authorizationUrl();
-    const state = provider.authorizationState();
+    const authorizationUrl = activeProvider.authorizationUrl();
+    const state = activeProvider.authorizationState();
     if (authorizationUrl === undefined || state === undefined) {
       throw new RuntimeError("MCP_OAUTH_AUTHORIZATION_FAILED", `MCP server '${serverId}' did not provide an authorization URL`);
     }
@@ -259,7 +261,7 @@ export async function authorizeMcpServer(
     try {
       await openBrowser(authorizationUrl.toString());
     } catch {
-      console.log(authorizationUrl.toString());
+      console.error(authorizationUrl.toString());
     }
     const callbackParams = await waitForCallback(callback, state, callbackTimeoutMs);
     await (firstConnection.transport as FinishableTransport).finishAuth(callbackParams);
@@ -267,14 +269,14 @@ export async function authorizeMcpServer(
     firstClient = undefined;
 
     secondClient = new Client({ name: "oh-my-tool", version: VERSION });
-    const secondConnection = await createMcpTransport(serverId, validated, secrets, async () => provider);
+    const secondConnection = await createMcpTransport(serverId, validated, secrets, async () => activeProvider);
     await secondClient.connect(secondConnection.transport);
     return { serverId, authorized: true };
   } finally {
     await closeClient(firstClient);
     await closeClient(secondClient);
     await callback.close();
-    await provider.clearVerifier();
+    await provider?.clearVerifier();
   }
 }
 

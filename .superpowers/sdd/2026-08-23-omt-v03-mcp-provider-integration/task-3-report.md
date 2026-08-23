@@ -124,3 +124,58 @@ The full repository suite is run again immediately before commit and recorded in
 
 - The integration tests use a standards-shaped local OAuth/MCP fixture rather than a live third-party authorization server. Provider-specific deviations may still require interoperability testing against each configured service.
 - No known Task 3 functional blocker remains.
+
+## Fix round 1 — 2026-08-23
+
+### Changes
+
+- Moved interactive provider construction inside the authorization cleanup boundary so a callback created before missing pre-registered secret resolution is always closed.
+- Kept the validated browser-launch fallback and redirected its single authorization URL message from stdout to stderr.
+- Preserved `MCP_OAUTH_CREDENTIALS_INVALID`, in addition to `MCP_AUTH_REQUIRED`, when it originates during ordinary session connection. The original `RuntimeError` remains the thrown value.
+- Rejected a matching-state callback that contains neither `code` nor `error` with `MCP_OAUTH_AUTHORIZATION_FAILED` and the fixed error page.
+
+### TDD RED/GREEN evidence
+
+1. Callback cleanup on provider-construction failure
+   - RED: `bun test packages/cli/test/runtime/mcp-oauth.test.ts -t "closes the loopback callback"`
+   - Result: exit 1, 0 pass, 1 fail; a fetch to the captured callback URL resolved, proving the listener remained open.
+   - GREEN: the same command exited 0 with 1 pass, 0 fail, 3 expectations after provider construction entered the cleanup `try/finally`.
+
+2. Browser fallback output channel
+   - RED: `bun test packages/cli/test/runtime/mcp-oauth.test.ts -t "prints a safe authorization URL once to stderr"`
+   - Result: exit 1, 0 pass, 1 fail; stdout contained the authorization URL while stderr was empty.
+   - GREEN: the same command exited 0 with 1 pass, 0 fail, 6 expectations after changing the fallback to stderr.
+
+3. Stable malformed-credential session error
+   - RED: `bun test packages/cli/test/runtime/mcp-session.test.ts -t "preserves malformed OAuth credential errors"`
+   - Result: exit 1, 0 pass, 1 fail; session creation returned `MCP_CONNECTION_FAILED` instead of `MCP_OAUTH_CREDENTIALS_INVALID`.
+   - GREEN: the same command exited 0 with 1 pass, 0 fail, 1 expectation after preserving the original OAuth credential error.
+
+4. Callback with neither authorization result field
+   - RED: `bun test packages/cli/test/runtime/mcp-oauth-callback.test.ts -t "neither code nor error"`
+   - Result: exit 1, 0 pass, 1 fail; the callback resolved with only the matching state.
+   - GREEN: the same command exited 0 with 1 pass, 0 fail, 3 expectations after requiring a code when no OAuth error is present.
+
+### Focused verification
+
+- `bun test packages/cli/test/runtime/mcp-oauth.test.ts packages/cli/test/runtime/mcp-oauth-callback.test.ts packages/cli/test/commands.test.ts packages/cli/test/e2e.test.ts packages/cli/test/runtime/mcp-session.test.ts`
+  - Exit 0
+  - 72 pass
+  - 0 fail
+  - 205 expectations
+
+### Final fix-round verification
+
+- `npm test`
+  - Exit 0
+  - 216 pass
+  - 0 fail
+  - 507 expectations across 24 files
+- `npm run typecheck`
+  - Exit 0
+  - `tsc --noEmit` completed without diagnostics
+- `git diff --check`
+  - Exit 0
+  - No whitespace errors; Git emitted only the repository's LF-to-CRLF conversion warnings
+
+The first post-change typecheck exposed two closure-narrowing diagnostics because the provider reference is optional for cleanup before construction but captured by transport factories after construction. A definite `activeProvider` local now supplies both factories while the optional reference remains solely for `finally`; the final typecheck above is GREEN.

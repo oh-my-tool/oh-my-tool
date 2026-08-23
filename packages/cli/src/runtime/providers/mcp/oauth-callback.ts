@@ -51,6 +51,10 @@ export async function createOAuthCallback(
         result.reject(new RuntimeError(code, "OAuth authorization was not completed"));
         return new Response(ERROR_PAGE, { status: 400, headers: RESPONSE_HEADERS });
       }
+      if (url.searchParams.get("code") === null) {
+        result.reject(new RuntimeError("MCP_OAUTH_AUTHORIZATION_FAILED", "OAuth authorization was not completed"));
+        return new Response(ERROR_PAGE, { status: 400, headers: RESPONSE_HEADERS });
+      }
       result.resolve(new URLSearchParams(url.searchParams));
       return new Response(SUCCESS_PAGE, { status: 200, headers: RESPONSE_HEADERS });
     },

@@ -68,6 +68,18 @@ describe("MCP OAuth loopback callback", () => {
     expect(body).not.toContain("access_denied");
   });
 
+  test("rejects a matching-state callback with neither code nor error", async () => {
+    const value = await callback();
+    const resultPromise = value.waitForResult("expected-state");
+    const rejection = resultPromise.catch((error: unknown) => error);
+
+    const response = await fetch(callbackUrl(value, "state=expected-state"));
+    expect(await rejection).toMatchObject({ code: "MCP_OAUTH_AUTHORIZATION_FAILED" });
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("<!doctype html><html><body><h1>Authorization failed</h1><p>Return to Oh My Tool for details.</p></body></html>");
+  });
+
   test("keeps listening after a wrong path", async () => {
     const value = await callback();
     const resultPromise = value.waitForResult("expected-state");

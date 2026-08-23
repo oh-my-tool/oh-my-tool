@@ -5,6 +5,7 @@ import { createMcpSession, type McpClient, type McpSessionDependencies } from ".
 import { createMcpTransport, type McpTransport, type McpTransportDependencies, type OAuthMcpServerConfig } from "../../src/runtime/providers/mcp/transport";
 import { memoryStore } from "../../src/secrets/secrets";
 import { RuntimeError } from "../../src/runtime/errors";
+import { createMcpOAuthProvider } from "../../src/runtime/providers/mcp/oauth-provider";
 
 const stdioConfig: McpStdioServerConfig = {
   enabled: true,
@@ -261,6 +262,37 @@ describe("MCP sessions", () => {
       createTransport: (serverId, config, secrets, oauth) => createMcpTransport(serverId, config, secrets, oauth, transportDependencies()),
     }))).rejects.toMatchObject({ code: "MCP_SECRET_NOT_FOUND" });
     expect(events).not.toContain("connect:stdio");
+  });
+
+  test("preserves malformed OAuth credential errors raised during session connection", async () => {
+    const config: OAuthMcpServerConfig = {
+      ...httpConfig,
+      secretHeaders: {},
+      auth: { type: "oauth", scopes: ["tools"], callbackPort: 0, tokenEndpointAuthMethod: "none" },
+    };
+    const malformed = "{malformed-never-expose-me";
+    const secrets = memoryStore({ "mcp:demo:oauth:tokens": malformed });
+
+    await expect(createMcpSession("demo", config, secrets, dependencies([], {
+      oauthAuthProviderFactory: createMcpOAuthProvider,
+      createTransport: (serverId, serverConfig, secretStore, oauth) => createMcpTransport(
+        serverId,
+        serverConfig,
+        secretStore,
+        oauth,
+        transportDependencies(),
+      ),
+      createClient: () => ({
+        ...fakeClient([]),
+        async connect(value) {
+          const provider = (value.options as { authProvider: { tokens(): Promise<unknown> } }).authProvider;
+          await provider.tokens();
+        },
+      }),
+    }))).rejects.toMatchObject({
+      code: "MCP_OAUTH_CREDENTIALS_INVALID",
+      message: expect.not.stringContaining(malformed),
+    });
   });
 
   test("closes a partially created transport after connection failure", async () => {

@@ -11,7 +11,10 @@ import {
   authorizeMcpServer,
   createMcpOAuthProvider,
 } from "../../src/runtime/providers/mcp/oauth-provider";
-import type { OAuthCallback } from "../../src/runtime/providers/mcp/oauth-callback";
+import {
+  createOAuthCallback,
+  type OAuthCallback,
+} from "../../src/runtime/providers/mcp/oauth-callback";
 import { createMcpSession } from "../../src/runtime/providers/mcp/session";
 import type { OAuthMcpServerConfig } from "../../src/runtime/providers/mcp/transport";
 
@@ -235,6 +238,31 @@ describe("MCP OAuth provider", () => {
 });
 
 describe("MCP OAuth authorization", () => {
+  test("closes the loopback callback when pre-registered client secret resolution fails", async () => {
+    const config: OAuthMcpServerConfig = {
+      ...dynamicConfig,
+      auth: {
+        ...dynamicConfig.auth,
+        clientId: "pre-registered-client",
+        clientSecretSecret: "missing-client-secret",
+        tokenEndpointAuthMethod: "client_secret_basic",
+      },
+    };
+    let callbackUrl: URL | undefined;
+
+    await expect(authorizeMcpServer("linear", config, memoryStore(), {
+      createCallback: async (port) => {
+        const value = await createOAuthCallback(port, 1_000);
+        callbackUrl = value.redirectUrl;
+        return value;
+      },
+      callbackTimeoutMs: 1_000,
+    })).rejects.toMatchObject({ code: "MCP_SECRET_NOT_FOUND" });
+
+    expect(callbackUrl).toBeDefined();
+    await expect(fetch(callbackUrl!)).rejects.toBeDefined();
+  });
+
   test("uses official discovery, dynamic registration, PKCE exchange, and a fresh authenticated connection", async () => {
     const fixture = createOAuthMcpFixture();
     const secrets = memoryStore();
@@ -278,13 +306,16 @@ describe("MCP OAuth authorization", () => {
     expect(callbackClosed).toBe(true);
   });
 
-  test("prints a safe authorization URL once when browser launch fails and still completes", async () => {
+  test("prints a safe authorization URL once to stderr when browser launch fails and still completes", async () => {
     const fixture = createOAuthMcpFixture();
     const secrets = memoryStore();
-    const output: string[] = [];
+    const stdout: string[] = [];
+    const stderr: string[] = [];
     const originalLog = console.log;
+    const originalError = console.error;
     let attemptedUrl = "";
-    console.log = (value?: unknown) => output.push(String(value));
+    console.log = (value?: unknown) => stdout.push(String(value));
+    console.error = (value?: unknown) => stderr.push(String(value));
     try {
       const result = await authorizeMcpServer("linear", fixture.config, secrets, {
         createCallback: async () => ({
@@ -303,12 +334,14 @@ describe("MCP OAuth authorization", () => {
       expect(result).toEqual({ serverId: "linear", authorized: true });
     } finally {
       console.log = originalLog;
+      console.error = originalError;
     }
 
-    expect(output).toEqual([attemptedUrl]);
-    expect(output[0]).toStartWith(`${fixture.origin}/authorize?`);
-    expect(output.join(" ")).not.toContain("access-token");
-    expect(output.join(" ")).not.toContain("refresh-token");
+    expect(stdout).toEqual([]);
+    expect(stderr).toEqual([attemptedUrl]);
+    expect(stderr[0]).toStartWith(`${fixture.origin}/authorize?`);
+    expect(stderr.join(" ")).not.toContain("access-token");
+    expect(stderr.join(" ")).not.toContain("refresh-token");
   });
 
   test("reuses valid persisted credentials without opening a browser", async () => {

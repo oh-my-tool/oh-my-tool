@@ -72,8 +72,10 @@ function isMissingSecretError(cause: unknown): cause is RuntimeError {
   return cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND";
 }
 
-function isAuthRequiredError(cause: unknown): cause is RuntimeError {
-  return cause instanceof RuntimeError && cause.code === "MCP_AUTH_REQUIRED";
+function isPreservedOAuthError(cause: unknown): cause is RuntimeError {
+  return cause instanceof RuntimeError && (
+    cause.code === "MCP_AUTH_REQUIRED" || cause.code === "MCP_OAUTH_CREDENTIALS_INVALID"
+  );
 }
 
 async function closeQuietly(transport: McpTransport): Promise<void> {
@@ -110,7 +112,7 @@ export async function createMcpSession(
     await client.connect(connection.transport);
   } catch (cause) {
     await closeQuietly(connection.transport);
-    if (isAuthRequiredError(cause)) throw cause;
+    if (isPreservedOAuthError(cause)) throw cause;
     throw mcpConnectionError(serverId, cause, secretValues);
   }
   let closed = false;
