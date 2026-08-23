@@ -33,6 +33,13 @@ export interface McpTransportConnection {
   secretValues: readonly string[];
 }
 
+export class McpTransportSetupError extends Error {
+  constructor(public readonly cause: unknown, public readonly secretValues: readonly string[]) {
+    super(cause instanceof Error ? cause.message : "MCP transport setup failed", { cause });
+    this.name = "McpTransportSetupError";
+  }
+}
+
 const defaults: McpTransportDependencies = {
   getDefaultEnvironment,
   createStdioTransport: (options) => new StdioClientTransport(options),
@@ -86,23 +93,28 @@ export async function createMcpTransport(
     Object.entries(config.secretHeaders).map(async ([name, secret]) => [name, await requiredSecret(serverId, secret, secrets)]),
   )) as Record<string, string>;
   const secretValues = [...Object.values(resolvedSecretHeaders)];
-  let authProvider: AuthProvider | undefined;
-  if (config.auth.type === "bearer") {
-    const auth = config.auth;
-    const token = await requiredSecret(serverId, auth.tokenSecret, secrets);
-    secretValues.push(token);
-    authProvider = { token: () => secrets.get(auth.tokenSecret) };
-  } else if (config.auth.type === "oauth") {
-    if (!oauthAuthProviderFactory) {
-      throw new RuntimeError("MCP_OAUTH_PROVIDER_UNAVAILABLE", `MCP server '${serverId}' requires an OAuth auth provider`);
+  try {
+    let authProvider: AuthProvider | undefined;
+    if (config.auth.type === "bearer") {
+      const auth = config.auth;
+      const token = await requiredSecret(serverId, auth.tokenSecret, secrets);
+      secretValues.push(token);
+      authProvider = { token: () => secrets.get(auth.tokenSecret) };
+    } else if (config.auth.type === "oauth") {
+      if (!oauthAuthProviderFactory) {
+        throw new RuntimeError("MCP_OAUTH_PROVIDER_UNAVAILABLE", `MCP server '${serverId}' requires an OAuth auth provider`);
+      }
+      authProvider = await oauthAuthProviderFactory(serverId, config as OAuthMcpServerConfig, secrets);
     }
-    authProvider = await oauthAuthProviderFactory(serverId, config as OAuthMcpServerConfig, secrets);
+    return {
+      transport: dependencies.createHttpTransport(new URL(config.url), {
+        ...(authProvider === undefined ? {} : { authProvider }),
+        requestInit: { headers: { ...config.headers, ...resolvedSecretHeaders } },
+      }),
+      secretValues: [...Object.values(config.headers), ...secretValues],
+    };
+  } catch (cause) {
+    if (cause instanceof RuntimeError && cause.code === "MCP_SECRET_NOT_FOUND") throw cause;
+    throw new McpTransportSetupError(cause, secretValues);
   }
-  return {
-    transport: dependencies.createHttpTransport(new URL(config.url), {
-      ...(authProvider === undefined ? {} : { authProvider }),
-      requestInit: { headers: { ...config.headers, ...resolvedSecretHeaders } },
-    }),
-    secretValues: [...Object.values(config.headers), ...secretValues],
-  };
 }

@@ -7,6 +7,7 @@ import {
   createMcpTransport,
   type McpTransport,
   type OAuthAuthProviderFactory,
+  McpTransportSetupError,
 } from "./transport";
 
 export interface McpSession {
@@ -58,7 +59,11 @@ export function mcpRequestError(serverId: string, operation: "tools/list" | "too
 }
 
 function configuredValues(config: McpServerConfig): string[] {
-  return config.transport === "stdio" ? Object.values(config.env) : Object.values(config.headers);
+  const runtimeConfig = config as unknown as { env?: unknown; headers?: unknown };
+  return [runtimeConfig.env, runtimeConfig.headers].flatMap((values) => {
+    if (values === null || typeof values !== "object" || Array.isArray(values)) return [];
+    return Object.values(values).filter((value): value is string => typeof value === "string");
+  });
 }
 
 function isMissingSecretError(cause: unknown): cause is RuntimeError {
@@ -79,13 +84,20 @@ export async function createMcpSession(
   secrets: SecretStore,
   dependencies: McpSessionDependencies = defaults,
 ): Promise<McpSession> {
-  const client = dependencies.createClient({ name: "oh-my-tool", version: dependencies.clientVersion });
+  let client: McpClient;
+  try {
+    client = dependencies.createClient({ name: "oh-my-tool", version: dependencies.clientVersion });
+  } catch (cause) {
+    throw mcpConnectionError(serverId, cause, configuredValues(config));
+  }
   let connection;
   try {
     connection = await dependencies.createTransport(serverId, config, secrets, dependencies.oauthAuthProviderFactory);
   } catch (cause) {
     if (isMissingSecretError(cause)) throw cause;
-    throw mcpConnectionError(serverId, cause, configuredValues(config));
+    const setupCause = cause instanceof McpTransportSetupError ? cause.cause : cause;
+    const secretValues = cause instanceof McpTransportSetupError ? cause.secretValues : [];
+    throw mcpConnectionError(serverId, setupCause, [...configuredValues(config), ...secretValues]);
   }
   const secretValues = [...configuredValues(config), ...connection.secretValues];
   try {

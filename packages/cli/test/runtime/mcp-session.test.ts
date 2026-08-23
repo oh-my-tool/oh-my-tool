@@ -162,6 +162,60 @@ describe("MCP sessions", () => {
     });
   });
 
+  test("normalizes client construction failures and retains their cause", async () => {
+    const cause = new Error("client construction failed");
+    await expect(createMcpSession("demo", stdioConfig, memoryStore(), dependencies([], {
+      createClient: () => { throw cause; },
+    }))).rejects.toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.stringContaining("client construction failed"),
+    });
+  });
+
+  test("normalizes setup errors for malformed runtime transports without masking their cause", async () => {
+    const cause = new Error("original setup failure");
+    const invalid = { ...stdioConfig, transport: "socket" } as unknown as McpStdioServerConfig;
+    await expect(createMcpSession("demo", invalid, memoryStore(), dependencies([], {
+      createTransport: async () => { throw cause; },
+    }))).rejects.toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.stringContaining("original setup failure"),
+    });
+  });
+
+  test("redacts resolved HTTP bearer and secret-header values from transport setup errors", async () => {
+    const token = "resolved-bearer-token";
+    const header = "resolved-secret-header";
+    const cause = new Error(`transport rejected ${token} and ${header}`);
+    let error: unknown;
+    try {
+      await createMcpSession("demo", httpConfig, memoryStore({
+        "mcp:demo:token": token,
+        "mcp:demo:header": header,
+      }), dependencies([], {
+        createTransport: (serverId, config, secrets, oauth) => createMcpTransport(
+          serverId,
+          config,
+          secrets,
+          oauth,
+          transportDependencies(() => { throw cause; }),
+        ),
+      }));
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({
+      code: "MCP_CONNECTION_FAILED",
+      cause,
+      message: expect.not.stringContaining(token),
+    });
+    expect((error as Error).message).toEqual(expect.not.stringContaining(header));
+    expect(JSON.stringify(error)).not.toContain(token);
+    expect(JSON.stringify(error)).not.toContain(header);
+  });
+
   test("redacts literal configured header values from fake SDK errors", async () => {
     const literal = "literal-header-value";
     const config: McpHttpServerConfig = { ...httpConfig, headers: { "x-literal": literal } };
