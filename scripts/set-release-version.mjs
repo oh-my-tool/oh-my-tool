@@ -22,4 +22,10 @@ updatePackage("packages/cli/package.json", (pkg) => {
   pkg.dependencies["@oh-my-tool/sdk"] = version;
 });
 
+writeFileSync(
+  resolve("packages/cli/src/version.ts"),
+  `export const VERSION = ${JSON.stringify(version)};\n`,
+  "utf8",
+);
+
 console.log(`Prepared @oh-my-tool/sdk and @oh-my-tool/cli ${version}`);

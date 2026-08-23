@@ -36,10 +36,11 @@ describe("ohmytool cli e2e", () => {
   });
 
   test("--version prints version", async () => {
+    const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
     const code = await main(["--version"]);
     expect(code).toBe(0);
     expect(logs[0]).toContain('"name": "ohmytool"');
-    expect(logs[0]).toContain("0.2.0");
+    expect(logs[0]).toContain(pkg.version);
   });
 
   test("help advertises ohmytool run and not omt call", async () => {
