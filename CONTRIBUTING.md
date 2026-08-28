@@ -13,6 +13,9 @@ contract and the existing extension SDK compatibility.
 Use a focused branch and explain the user-visible behavior in the pull request.
 Do not commit credentials, local state, generated archives, or `node_modules`.
 
+For npm releases, follow [docs/releasing.md](docs/releasing.md). A release tag
+must not be pushed until the `main` CI workflow has passed.
+
 ## Change expectations
 
 - Add or update tests for behavior changes.
