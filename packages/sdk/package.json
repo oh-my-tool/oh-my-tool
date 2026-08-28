@@ -1,6 +1,6 @@
 {
   "name": "@oh-my-tool/sdk",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "Oh My Tool extension SDK",
   "keywords": [

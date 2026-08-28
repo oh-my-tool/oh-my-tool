@@ -35,6 +35,10 @@ ohmytool connection check
 ohmytool config check
 ```
 
+`connection list` lists connections for every configured extension. `connection check`
+invokes the conventional `<extension-id>.ping` tool when that extension provides one;
+extensions without a ping tool are reported as `CHECK_UNSUPPORTED`.
+
 Passwords are stored separately:
 
 ```powershell

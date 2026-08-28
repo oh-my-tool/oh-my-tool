@@ -217,6 +217,19 @@ describe("cli commands", () => {
     });
   });
 
+  test("connection check uses an installed extension's ping tool", async () => {
+    writeFileSync(join(home, "config.toml"), "[extensions.hbase.connections.one]\nhost=\"hbase\"\nport=2181\n", "utf8");
+    createFakeExtension(home, {
+      id: "hbase",
+      tools: [{ name: "hbase.ping", description: "ping", risk: "read", inputSchema: { type: "object", required: ["connection"], properties: { connection: { type: "string" } } } }],
+    });
+
+    await expect(runConnectionCheck()).resolves.toEqual({
+      checks: [{ extension: "hbase", name: "one", status: "ok", durationMs: expect.any(Number) }],
+      count: 1,
+    });
+  });
+
   test("config check returns a secret-free configuration summary", async () => {
     const result = await runConfigCheck();
     expect(result).toEqual({ valid: true, connectionCount: 1, extensionCount: 1 });

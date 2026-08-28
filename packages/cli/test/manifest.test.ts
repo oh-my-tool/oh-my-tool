@@ -56,6 +56,25 @@ describe("validateManifest", () => {
     expect(() => validateManifest(dup)).toThrow(/duplicate/i);
   });
 
+  test("rejects unsafe extension ids and versions", () => {
+    expect(() => validateManifest({
+      id: "../escape",
+      name: "Escape",
+      version: "0.1.0",
+      sdkVersion: "^0.1.0",
+      description: "d",
+      tools: [],
+    })).toThrow(/id/i);
+    expect(() => validateManifest({
+      id: "safe",
+      name: "Safe",
+      version: "../escape",
+      sdkVersion: "^0.1.0",
+      description: "d",
+      tools: [],
+    })).toThrow(/version/i);
+  });
+
   test("rejects a tool name not prefixed by extension id", () => {
     const bad = {
       ...validManifest,

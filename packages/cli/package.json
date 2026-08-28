@@ -1,6 +1,6 @@
 {
   "name": "@oh-my-tool/cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "Oh My Tool CLI - local and enterprise tools for agents",
   "keywords": [
@@ -29,7 +29,7 @@
   "dependencies": {
     "@clack/prompts": "^1.7.0",
     "@modelcontextprotocol/client": "2.0.0",
-    "@oh-my-tool/sdk": "0.3.1",
+    "@oh-my-tool/sdk": "0.3.2",
     "open": "11.0.0"
   },
   "engines": {

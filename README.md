@@ -31,10 +31,10 @@ ohmytool run <tool> [key=value ...]     execute a tool (AI-friendly text by defa
 ohmytool run <tool> --stdin             execute JSON input from stdin
 ohmytool run <tool> ... --json          output the machine-readable JSON result
 ohmytool connection list                list configured connections
-ohmytool connection check               check MySQL/Redis connectivity
+ohmytool connection check               check extensions that provide <id>.ping
 ohmytool config check                   validate configuration
 ohmytool extension list                 list installed extensions
-ohmytool extension install <path>       install an extension from a local directory
+ohmytool extension install <path|package> install a local or npm extension
 ohmytool setup                          install the bundled Agent Skill
 ohmytool integrate                       manage Agent Skill integrations
 ohmytool secret set <name>              store a secret without exposing its value
@@ -78,6 +78,10 @@ bun packages/cli/bin/ohmytool.ts --help
 
 # Install an independent extension during local development
 bun packages/cli/bin/ohmytool.ts extension install <path-to-extension>
+
+# Install a published official extension from npm
+bun packages/cli/bin/ohmytool.ts extension install @oh-my-tool/redis
+bun packages/cli/bin/ohmytool.ts extension install redis@0.3.1
 
 # Discover and inspect tools
 bun packages/cli/bin/ohmytool.ts search "query mysql data"

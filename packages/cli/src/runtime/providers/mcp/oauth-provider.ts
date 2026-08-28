@@ -33,11 +33,13 @@ import {
 export interface McpOAuthProviderOptions {
   readonly redirectUrl?: URL;
   readonly interactive?: boolean;
+  readonly forceDynamicRegistration?: boolean;
 }
 
 export interface McpOAuthClientProvider extends OAuthClientProvider {
   readonly redirectUrl: URL;
   readonly secretValues: readonly string[];
+  readonly clientConfigurationFingerprint: string;
   authorizationUrl(): URL | undefined;
   authorizationState(): string | undefined;
   clearVerifier(): Promise<void>;
@@ -65,6 +67,7 @@ function oauthAuthRequired(serverId: string): RuntimeError {
 
 class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
   readonly clientMetadata: OAuthClientMetadata;
+  readonly clientConfigurationFingerprint: string;
   private pendingAuthorizationUrl: URL | undefined;
   private pendingState: string | undefined;
 
@@ -85,6 +88,12 @@ class PersistentMcpOAuthProvider implements McpOAuthClientProvider {
       client_name: "Oh My Tool",
       ...(config.auth.scopes.length === 0 ? {} : { scope: config.auth.scopes.join(" ") }),
     };
+    this.clientConfigurationFingerprint = JSON.stringify({
+      redirectUrl: redirectUrl.toString(),
+      clientId: config.auth.clientId ?? null,
+      clientSecretConfigured: config.auth.clientSecretSecret !== undefined,
+      metadata: this.clientMetadata,
+    });
   }
 
   state(): string {
@@ -172,6 +181,9 @@ export async function createMcpOAuthProvider(
   const interactive = options.interactive ?? false;
   const store = createMcpOAuthStore(serverId, secrets);
   if (!interactive && await store.tokens() === undefined) throw oauthAuthRequired(serverId);
+  if (options.forceDynamicRegistration === true && config.auth.clientId === undefined) {
+    await store.clear("client");
+  }
   let preRegisteredClient: StoredOAuthClientInformation | undefined;
   const secretValues: string[] = [];
   if (config.auth.clientId !== undefined) {
@@ -191,7 +203,7 @@ export async function createMcpOAuthProvider(
       client_secret: clientSecret,
     };
   }
-  return new PersistentMcpOAuthProvider(
+  const provider = new PersistentMcpOAuthProvider(
     serverId,
     config,
     store,
@@ -200,6 +212,14 @@ export async function createMcpOAuthProvider(
     secretValues,
     interactive,
   );
+  const previousFingerprint = await store.clientConfiguration();
+  if (previousFingerprint !== provider.clientConfigurationFingerprint) {
+    if (previousFingerprint !== undefined) {
+      await store.clear("client");
+    }
+  }
+  await store.saveClientConfiguration(provider.clientConfigurationFingerprint);
+  return provider;
 }
 
 function oauthConfig(serverId: string, config: McpHttpServerConfig): OAuthMcpServerConfig {
@@ -287,6 +307,7 @@ export async function authorizeMcpServer(
     const activeProvider = await createMcpOAuthProvider(serverId, validated, secrets, {
       redirectUrl: callback.redirectUrl,
       interactive: true,
+      forceDynamicRegistration: true,
     });
     provider = activeProvider;
     firstClient = createClient({ name: "oh-my-tool", version: VERSION });

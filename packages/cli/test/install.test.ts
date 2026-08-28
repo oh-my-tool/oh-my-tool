@@ -2,7 +2,8 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
-import { installLocalExtension } from "../src/extension/install";
+import { cp as cpAsync } from "node:fs/promises";
+import { installLocalExtension, installNpmExtension, normalizeNpmExtensionSpec } from "../src/extension/install";
 import { discoverExtensions } from "../src/extension/discovery";
 import { ManifestError } from "../src/extension/manifest";
 
@@ -54,6 +55,42 @@ describe("installLocalExtension", () => {
   test("rejects an extension whose sdkVersion is incompatible", async () => {
     writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "mysql", name: "MySQL", version: "0.2.0", sdkVersion: "^99.0.0", description: "d", tools: [{ name: "mysql.query", description: "q" }] }), "utf8");
     await expect(installLocalExtension(home, src)).rejects.toThrow(ManifestError);
+    expect(existsSync(join(home, "extensions", "mysql", "0.2.0"))).toBe(false);
+  });
+});
+
+describe("normalizeNpmExtensionSpec", () => {
+  test("maps official shorthand and preserves an exact version", () => {
+    expect(normalizeNpmExtensionSpec("redis")).toEqual({ packageName: "@oh-my-tool/redis", npmSpec: "@oh-my-tool/redis" });
+    expect(normalizeNpmExtensionSpec("redis@0.3.1")).toEqual({ packageName: "@oh-my-tool/redis", npmSpec: "@oh-my-tool/redis@0.3.1", version: "0.3.1" });
+    expect(normalizeNpmExtensionSpec("@oh-my-tool/redis@0.3.1")).toEqual({ packageName: "@oh-my-tool/redis", npmSpec: "@oh-my-tool/redis@0.3.1", version: "0.3.1" });
+  });
+
+  test("rejects non-official, malformed, and range package specs", () => {
+    expect(normalizeNpmExtensionSpec("hbase")).toEqual({ packageName: "@oh-my-tool/hbase", npmSpec: "@oh-my-tool/hbase" });
+    expect(() => normalizeNpmExtensionSpec("redis@^0.3.1")).toThrow(/exact/i);
+    expect(() => normalizeNpmExtensionSpec("redis@")).toThrow(/exact/i);
+    expect(() => normalizeNpmExtensionSpec("other/redis")).toThrow(/official/i);
+    expect(() => normalizeNpmExtensionSpec("@other/redis")).toThrow(/official/i);
+  });
+});
+
+describe("installNpmExtension", () => {
+  test("validates and activates the package returned by npm", async () => {
+    await installNpmExtension(home, "mysql@0.2.0", {
+      install: async (_spec, tempDir) => {
+        await cpAsync(src, join(tempDir, "node_modules", "@oh-my-tool", "mysql"), { recursive: true });
+      },
+    });
+    expect(existsSync(join(home, "extensions", "mysql", "0.2.0", "omt.manifest.json"))).toBe(true);
+  });
+
+  test("rejects a package whose resolved version differs from the requested exact version", async () => {
+    await expect(installNpmExtension(home, "mysql@0.3.1", {
+      install: async (_spec, tempDir) => {
+        await cpAsync(src, join(tempDir, "node_modules", "@oh-my-tool", "mysql"), { recursive: true });
+      },
+    })).rejects.toThrow(/unexpected version/i);
     expect(existsSync(join(home, "extensions", "mysql", "0.2.0"))).toBe(false);
   });
 });

@@ -81,16 +81,12 @@ export async function runConnectionCheck(): Promise<ConnectionCheckResult> {
   return withRuntime(async (runtime) => {
     const checks: ConnectionCheck[] = [];
     for (const connection of list.connections) {
-      if (connection.extension !== "redis" && connection.extension !== "mysql") {
-        checks.push({ extension: connection.extension, name: connection.name, status: "unsupported", code: "CHECK_UNSUPPORTED" });
-        continue;
-      }
       const started = Date.now();
       const result = await runtime.run(`${connection.extension}.ping`, { connection: connection.name });
       checks.push(result.ok
         ? { extension: connection.extension, name: connection.name, status: "ok", durationMs: Date.now() - started }
         : result.error?.code === "TOOL_NOT_FOUND"
-          ? { extension: connection.extension, name: connection.name, status: "unsupported", code: "CHECK_UNSUPPORTED", durationMs: Date.now() - started }
+          ? { extension: connection.extension, name: connection.name, status: "unsupported", code: "CHECK_UNSUPPORTED" }
           : { extension: connection.extension, name: connection.name, status: "error", code: result.error?.code ?? "CHECK_FAILED", durationMs: Date.now() - started });
     }
     return { checks, count: checks.length };

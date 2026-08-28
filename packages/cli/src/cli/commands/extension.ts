@@ -1,5 +1,5 @@
 import { discoverExtensions } from "../../extension/discovery";
-import { installLocalExtension, type InstalledRef } from "../../extension/install";
+import { installExtension, type InstalledRef } from "../../extension/install";
 import { homeDir } from "../context";
 
 export interface InstalledInfo {
@@ -19,6 +19,6 @@ export async function runExtensionList(): Promise<InstalledInfo[]> {
 }
 
 export async function runExtensionInstall(spec: string): Promise<InstalledRef> {
-  return installLocalExtension(homeDir(), spec);
+  return installExtension(homeDir(), spec);
 }
 

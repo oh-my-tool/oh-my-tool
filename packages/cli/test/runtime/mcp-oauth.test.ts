@@ -124,6 +124,30 @@ describe("MCP OAuth provider", () => {
     expect(provider.clientMetadata.scope).toBe("read write");
   });
 
+  test("clears a client registered under a previous explicit OAuth configuration", async () => {
+    const secrets = memoryStore();
+    const explicitConfig: OAuthMcpServerConfig = {
+      ...dynamicConfig,
+      auth: {
+        ...dynamicConfig.auth,
+        clientId: "old-explicit-client",
+      },
+    };
+    const explicitProvider = await createMcpOAuthProvider("linear", explicitConfig, secrets, {
+      redirectUrl,
+      interactive: true,
+    });
+    await explicitProvider.saveClientInformation!(client);
+
+    const dynamicProvider = await createMcpOAuthProvider("linear", dynamicConfig, secrets, {
+      redirectUrl,
+      interactive: true,
+    });
+
+    expect(await dynamicProvider.clientInformation()).toBeUndefined();
+    expect(await createMcpOAuthStore("linear", secrets).clientInformation()).toBeUndefined();
+  });
+
   test("returns a pre-registered client and configured token endpoint auth method", async () => {
     const config: OAuthMcpServerConfig = {
       ...dynamicConfig,

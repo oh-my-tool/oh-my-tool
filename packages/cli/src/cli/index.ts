@@ -30,7 +30,7 @@ Usage:
   ohmytool connection check                check MySQL/Redis connectivity
   ohmytool config check                     validate configuration
   ohmytool extension list                  list installed extensions
-  ohmytool extension install <path>        install an extension from a local dir
+  ohmytool extension install <path|package> install a local or npm extension
   ohmytool secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
   ohmytool secret list                     list secret names (Windows only, values never shown)
   ohmytool mcp list                       list configured MCP servers

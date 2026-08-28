@@ -11,6 +11,8 @@ export interface McpOAuthStore {
   saveTokens(tokens: StoredOAuthTokens): Promise<void>;
   clientInformation(): Promise<StoredOAuthClientInformation | undefined>;
   saveClientInformation(info: StoredOAuthClientInformation): Promise<void>;
+  clientConfiguration(): Promise<string | undefined>;
+  saveClientConfiguration(fingerprint: string): Promise<void>;
   codeVerifier(): Promise<string | undefined>;
   saveCodeVerifier(value: string): Promise<void>;
   discoveryState(): Promise<OAuthDiscoveryState | undefined>;
@@ -19,13 +21,14 @@ export interface McpOAuthStore {
   clearAll(): Promise<void>;
 }
 
-type CredentialScope = "tokens" | "client" | "verifier" | "discovery";
+type CredentialScope = "tokens" | "client" | "client-config" | "verifier" | "discovery";
 
 function credentialNames(serverId: string): Record<CredentialScope, string> {
   const prefix = `mcp:${serverId}:oauth`;
   return {
     tokens: `${prefix}:tokens`,
     client: `${prefix}:client`,
+    "client-config": `${prefix}:client-config`,
     verifier: `${prefix}:verifier`,
     discovery: `${prefix}:discovery`,
   };
@@ -70,6 +73,14 @@ export class SecretMcpOAuthStore implements McpOAuthStore {
 
   saveClientInformation(info: StoredOAuthClientInformation): Promise<void> {
     return this.secrets.set(this.names.client, JSON.stringify(info));
+  }
+
+  clientConfiguration(): Promise<string | undefined> {
+    return this.secrets.get(this.names["client-config"]);
+  }
+
+  saveClientConfiguration(fingerprint: string): Promise<void> {
+    return this.secrets.set(this.names["client-config"], fingerprint);
   }
 
   codeVerifier(): Promise<string | undefined> {

@@ -20,11 +20,17 @@ export function parseManifest(raw: string): ExtensionManifest {
 }
 
 export function validateManifest(manifest: ExtensionManifest): void {
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(manifest.id)) {
+    throw new ManifestError("manifest 'id' must contain only lowercase letters, numbers, underscores, and hyphens");
+  }
   if (!manifest.name || typeof manifest.name !== "string") {
     throw new ManifestError("manifest must contain a string 'name'");
   }
   if (!manifest.version || typeof manifest.version !== "string") {
     throw new ManifestError("manifest must contain a string 'version'");
+  }
+  if (!FULL_VERSION_RE.test(manifest.version)) {
+    throw new ManifestError(`invalid manifest version '${manifest.version}'`);
   }
   if (!manifest.sdkVersion || typeof manifest.sdkVersion !== "string") {
     throw new ManifestError("manifest must contain a string 'sdkVersion'");
