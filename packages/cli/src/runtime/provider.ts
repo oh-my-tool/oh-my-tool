@@ -8,7 +8,7 @@ export interface ToolDescriptor {
   risk: "read" | "write" | "admin";
   inputSchema?: Record<string, unknown>;
   provider: { id: string; kind: string };
-  source: { id: string; kind: string };
+  source: { id: string; kind: string; version?: string };
 }
 
 export type ToolSearchResult = Omit<ToolDescriptor, "inputSchema">;

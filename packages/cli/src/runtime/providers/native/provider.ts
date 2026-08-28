@@ -32,7 +32,7 @@ export class NativeExtensionProvider implements ToolProvider {
           risk: tool.risk ?? "read",
           inputSchema: tool.inputSchema,
           provider: { id: this.id, kind: this.kind },
-          source: { id: extension.manifest.id, kind: "extension" },
+          source: { id: extension.manifest.id, kind: "extension", version: extension.manifest.version },
         });
       }
     }

@@ -15,6 +15,9 @@ import {
   runMcpAuth,
   runMcpLogout,
   runMcpList,
+  runConnectionList,
+  runConnectionCheck,
+  runConfigCheck,
 } from "../src/cli/commands";
 import { memoryStore } from "../src/secrets/secrets";
 import { homeDir } from "../src/cli/context";
@@ -66,6 +69,17 @@ describe("cli commands", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error(res.error.message);
     expect(res.meta).toEqual({ ext: "mysql" });
+  });
+
+  test("passes extension connections to connection-free native tools", async () => {
+    createFakeExtension(home, {
+      id: "mysql",
+      tools: [{ name: "mysql.instances", description: "list instances", risk: "read", inputSchema: { type: "object" } }],
+    });
+    const res = await runTool("mysql.instances", {}, false);
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error(res.error.message);
+    expect(res.data).toMatchObject({ conn: { connections: { "iot-test": { host: "h", port: 3306 } } } });
   });
 
   test("extension list returns installed extensions", async () => {
@@ -175,6 +189,37 @@ describe("cli commands", () => {
         { id: "old", enabled: false, transport: "disabled", namespace: "old", auth: "disabled" },
       ],
     });
+  });
+
+  test("connection list returns all configured instances without secret references", async () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      "[extensions.mysql.connections.prod]\nenvironment=\"prod\"\nhost=\"mysql.prod\"\nport=3306\ndatabase=\"app\"\nusername=\"app\"\nsecret=\"mysql:prod\"\ntls=true\n[extensions.redis.connections.cache]\nenvironment=\"prod\"\nhost=\"redis.prod\"\nport=6379\ndatabase=\"0\"\nusername=\"default\"\nsecret=\"redis:prod\"\ntls=false\n",
+      "utf8",
+    );
+    const result = await runConnectionList();
+    expect(result).toEqual({
+      connections: [
+        { extension: "mysql", name: "prod", environment: "prod", host: "mysql.prod", port: 3306, database: "app", username: "app", tls: true, secretConfigured: true },
+        { extension: "redis", name: "cache", environment: "prod", host: "redis.prod", port: 6379, database: "0", username: "default", tls: false, secretConfigured: true },
+      ],
+      count: 2,
+    });
+    expect(JSON.stringify(result)).not.toContain("mysql:prod");
+  });
+
+  test("connection check reports unsupported extensions without connecting", async () => {
+    writeFileSync(join(home, "config.toml"), "[extensions.custom.connections.one]\nhost=\"custom\"\nport=1234\n", "utf8");
+    const result = await runConnectionCheck();
+    expect(result).toEqual({
+      checks: [{ extension: "custom", name: "one", status: "unsupported", code: "CHECK_UNSUPPORTED" }],
+      count: 1,
+    });
+  });
+
+  test("config check returns a secret-free configuration summary", async () => {
+    const result = await runConfigCheck();
+    expect(result).toEqual({ valid: true, connectionCount: 1, extensionCount: 1 });
   });
 
   test("MCP logout deletes only local server-scoped credentials and returns no credential fields", async () => {

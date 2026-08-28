@@ -5,4 +5,5 @@ export * from "./extension";
 export * from "./secret";
 export * from "./integrate";
 export * from "./mcp";
+export * from "./connections";
 

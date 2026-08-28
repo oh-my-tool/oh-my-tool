@@ -51,6 +51,7 @@ describe("ohmytool cli e2e", () => {
     expect(logs.join("\n")).toContain("ohmytool mcp auth <server>");
     expect(logs.join("\n")).toContain("ohmytool mcp logout <server>");
     expect(logs.join("\n")).toContain("ohmytool mcp list");
+    expect(logs.join("\n")).toContain("--json");
   });
 
   test("mcp list prints configured servers without secret values", async () => {
@@ -105,7 +106,36 @@ describe("ohmytool cli e2e", () => {
     createFakeExtension(home, { id: "mysql" });
     const code = await main(["run", "mysql.query", "connection=iot-test", "sql=SELECT 1"]);
     expect(code).toBe(0);
+    expect(logs[0]).toContain("status: ok");
+    expect(logs[0]).not.toContain('"ok": true');
+  });
+
+  test("run --json keeps the machine-readable JSON result", async () => {
+    createFakeExtension(home, { id: "mysql" });
+    const code = await main(["run", "mysql.query", "connection=iot-test", "sql=SELECT 1", "--json"]);
+    expect(code).toBe(0);
     expect(logs[0]).toContain('"ok": true');
+  });
+
+  test("run --format=json is equivalent to --json", async () => {
+    createFakeExtension(home, { id: "mysql" });
+    const code = await main(["run", "mysql.query", "connection=iot-test", "sql=SELECT 1", "--format=json"]);
+    expect(code).toBe(0);
+    expect(logs[0]).toContain('"ok": true');
+  });
+
+  test("connection list is available as a top-level diagnostic", async () => {
+    const code = await main(["connection", "list"]);
+    expect(code).toBe(0);
+    expect(logs[0]).toContain("connections:");
+    expect(logs[0]).toContain('name: "iot-test"');
+    expect(logs[0]).not.toContain('secret:');
+  });
+
+  test("config check is available as a top-level diagnostic", async () => {
+    const code = await main(["config", "check"]);
+    expect(code).toBe(0);
+    expect(logs[0]).toContain("valid: true");
   });
 
   test("call is no longer a canonical command", async () => {

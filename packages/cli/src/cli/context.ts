@@ -1,10 +1,11 @@
 import { createPaths } from "../paths";
 import { prepareHome } from "../migration";
-import { loadConfig, getConnectionConfig, type McpEnabledServerConfig } from "../config/config";
+import { loadConfig, getConnectionConfig, sanitizeExtensionConnections, type McpEnabledServerConfig } from "../config/config";
 import { SecretsManager } from "../secrets/secrets";
 import { applyLimits, validateConnectionInput } from "../policy/policy";
 import { NativeExtensionProvider } from "../runtime/providers/native/provider";
 import { McpProvider } from "../runtime/providers/mcp/provider";
+import { discoverExtensions } from "../extension/discovery";
 import { createToolRuntime } from "../runtime/runtime";
 import type { ToolDescriptor } from "../runtime/provider";
 
@@ -12,15 +13,24 @@ export function homeDir(): string {
   return createPaths().home;
 }
 
-export async function createRuntime() {
+export interface RuntimeOptions {
+  readonly includeMcp?: boolean;
+  readonly targetTool?: string;
+}
+
+export async function createRuntime(options: RuntimeOptions = {}) {
   const paths = createPaths();
   await prepareHome(paths);
   const config = loadConfig(paths.home);
   const secrets = new SecretsManager();
-  const providers = [new NativeExtensionProvider(paths), ...Object.entries(config.mcp.servers)
+  const extensionConnections = sanitizeExtensionConnections(config);
+  const nativeTarget = options.targetTool !== undefined && discoverExtensions(paths.home)
+    .some((extension) => extension.manifest.tools.some((tool) => tool.name === options.targetTool));
+  const mcpProviders = options.includeMcp === false || nativeTarget ? [] : Object.entries(config.mcp.servers)
     .sort(([a], [b]) => a.localeCompare(b))
     .filter((entry): entry is [string, McpEnabledServerConfig] => entry[1].enabled)
-    .map(([serverId, server]) => new McpProvider({ serverId, config: server, secrets }))];
+    .map(([serverId, server]) => new McpProvider({ serverId, config: server, secrets }));
+  const providers = [new NativeExtensionProvider(paths), ...mcpProviders];
   return createToolRuntime({
     providers,
     policy: {
@@ -42,15 +52,15 @@ export async function createRuntime() {
         : undefined;
       return {
         logger: { debug() {}, info() {}, warn() {}, error() {} },
-        config: (connection ?? {}) as Record<string, unknown>,
+        config: (connection ?? { connections: extensionConnections[extensionId] ?? {} }) as Record<string, unknown>,
         secrets,
       };
     },
   });
 }
 
-export async function withRuntime<T>(operation: (runtime: Awaited<ReturnType<typeof createRuntime>>) => Promise<T>): Promise<T> {
-  const runtime = await createRuntime();
+export async function withRuntime<T>(operation: (runtime: Awaited<ReturnType<typeof createRuntime>>) => Promise<T>, options: RuntimeOptions = {}): Promise<T> {
+  const runtime = await createRuntime(options);
   let operationFailed = false;
   try {
     return await operation(runtime);

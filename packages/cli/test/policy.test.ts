@@ -61,6 +61,12 @@ describe("assertReadOnly", () => {
   test("rejects multiple statements", () => {
     expect(() => assertReadOnly("SELECT 1; SELECT 2")).toThrow(PolicyError);
   });
+
+  test("rejects non-read statement heads and locking reads", () => {
+    for (const sql of ["USE app", "ANALYZE TABLE device", "SELECT * FROM device FOR UPDATE", "SELECT * INTO OUTFILE '/tmp/x' FROM device"]) {
+      expect(() => assertReadOnly(sql), sql).toThrow(PolicyError);
+    }
+  });
 });
 
 describe("validateConnectionInput", () => {

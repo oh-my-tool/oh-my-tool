@@ -27,8 +27,12 @@ The canonical executable is `ohmytool` and the canonical execution verb is `run`
 ```text
 ohmytool search "<task>"                search lightweight tool summaries
 ohmytool describe <tool>                inspect the complete descriptor and schema
-ohmytool run <tool> [key=value ...]     execute a tool
+ohmytool run <tool> [key=value ...]     execute a tool (AI-friendly text by default)
 ohmytool run <tool> --stdin             execute JSON input from stdin
+ohmytool run <tool> ... --json          output the machine-readable JSON result
+ohmytool connection list                list configured connections
+ohmytool connection check               check MySQL/Redis connectivity
+ohmytool config check                   validate configuration
 ohmytool extension list                 list installed extensions
 ohmytool extension install <path>       install an extension from a local directory
 ohmytool setup                          install the bundled Agent Skill
@@ -52,6 +56,11 @@ MCP, runtime initialization connects to every enabled server to discover
 `tools/list`; MCP tools are exposed as namespaced IDs such as
 `github.create_issue`. `run` performs schema validation and policy preflight
 before invoking the selected provider.
+
+Native tool results use readable text by default. MySQL results are shown as a
+row matrix whose first row contains column names; pass `--json` when a JSON
+result is required. `--format=text|json|table|csv` is also supported for tool
+and connection output; `--json` is an alias for `--format=json`.
 
 ## Quick start
 

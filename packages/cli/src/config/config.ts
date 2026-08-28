@@ -38,6 +38,37 @@ export interface Config {
 }
 
 function invalid(path: string, reason: string): never { throw new RuntimeError("MCP_INVALID_CONFIG", `${path}: ${reason}`); }
+function invalidConnection(path: string, reason: string): never { throw new RuntimeError("CONFIG_INVALID", `${path}: ${reason}`); }
+
+function parseConnection(extensionId: string, name: string, value: unknown): ConnectionConfig {
+  const path = `extensions.${extensionId}.connections.${name}`;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) invalidConnection(path, "must be a table");
+  const raw = value as Record<string, unknown>;
+  const stringField = (key: string, fallback = ""): string => {
+    const entry = raw[key];
+    if (entry === undefined) return fallback;
+    if (typeof entry !== "string") invalidConnection(`${path}.${key}`, "must be a string");
+    return entry;
+  };
+  const host = stringField("host");
+  if (host.trim().length === 0) invalidConnection(`${path}.host`, "must be a non-empty string");
+  const defaultPort = extensionId === "redis" ? 6379 : 3306;
+  const port = raw.port === undefined ? defaultPort : raw.port;
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    invalidConnection(`${path}.port`, "must be an integer from 1 through 65535");
+  }
+  const tls = raw.tls === undefined ? false : raw.tls;
+  if (typeof tls !== "boolean") invalidConnection(`${path}.tls`, "must be a boolean");
+  return {
+    environment: stringField("environment"),
+    host,
+    port,
+    database: stringField("database"),
+    username: stringField("username"),
+    secret: stringField("secret"),
+    tls,
+  };
+}
 
 function parseStringMap(value: unknown, path: string): Record<string, string> {
   if (value === undefined) return {};
@@ -129,12 +160,18 @@ export function loadConfig(homeDir: string): Config {
   const parsed = Bun.TOML.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
   const extensions: Config["extensions"] = {};
   const extSection = parsed.extensions;
+  if (extSection !== undefined && (extSection === null || typeof extSection !== "object" || Array.isArray(extSection))) {
+    invalidConnection("extensions", "must be a table");
+  }
   if (extSection && typeof extSection === "object") for (const [extId, extVal] of Object.entries(extSection)) {
+    if (extVal === null || typeof extVal !== "object" || Array.isArray(extVal)) invalidConnection(`extensions.${extId}`, "must be a table");
     const connections: Record<string, ConnectionConfig> = {};
-    const connSection = (extVal as Record<string, any>)?.connections;
+    const connSection = (extVal as Record<string, unknown>).connections;
+    if (connSection !== undefined && (connSection === null || typeof connSection !== "object" || Array.isArray(connSection))) {
+      invalidConnection(`extensions.${extId}.connections`, "must be a table");
+    }
     if (connSection && typeof connSection === "object") for (const [name, rawConn] of Object.entries(connSection)) {
-      const rc = rawConn as Record<string, any>;
-      connections[name] = { environment: String(rc.environment ?? ""), host: String(rc.host ?? ""), port: Number(rc.port ?? 3306), database: String(rc.database ?? ""), username: String(rc.username ?? ""), secret: String(rc.secret ?? ""), tls: Boolean(rc.tls ?? false) };
+      connections[name] = parseConnection(extId, name, rawConn);
     }
     extensions[extId] = { connections };
   }
@@ -153,3 +190,18 @@ export function loadConfig(homeDir: string): Config {
 
 export function getConnectionConfig(cfg: Config, extensionId: string, connection: string): ConnectionConfig | undefined { return cfg.extensions[extensionId]?.connections[connection]; }
 export function listConnections(cfg: Config, extensionId: string): string[] { return Object.keys(cfg.extensions[extensionId]?.connections ?? {}); }
+
+export function sanitizeExtensionConnections(cfg: Config): Record<string, Record<string, Omit<ConnectionConfig, "secret"> & { secretConfigured: boolean }> > {
+  return Object.fromEntries(Object.entries(cfg.extensions).map(([extensionId, extension]) => [
+    extensionId,
+    Object.fromEntries(Object.entries(extension.connections).map(([name, connection]) => [name, {
+      environment: connection.environment,
+      host: connection.host,
+      port: connection.port,
+      database: connection.database,
+      username: connection.username,
+      tls: connection.tls,
+      secretConfigured: connection.secret.length > 0,
+    }])),
+  ]));
+}

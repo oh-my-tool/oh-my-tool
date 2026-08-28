@@ -1,7 +1,7 @@
 import type { Logger, SecretStore, ToolContext, ToolResult } from "@oh-my-tool/sdk";
 import { ToolError } from "@oh-my-tool/sdk";
 import type { Config } from "../config/config";
-import { getConnectionConfig } from "../config/config";
+import { getConnectionConfig, sanitizeExtensionConnections } from "../config/config";
 import { resolveTool, OmtError, type Registry } from "./registry";
 import { validateInput, type Schema } from "./schema";
 import { validateConnectionInput, applyLimits, PolicyError } from "../policy/policy";
@@ -53,7 +53,7 @@ export async function executeTool(
     const ctx: ToolContext = {
       toolName,
       logger: deps.logger ?? noopLogger,
-      config: (connectionCfg ?? {}) as Record<string, unknown>,
+      config: (connectionCfg ?? { connections: sanitizeExtensionConnections(deps.config)[extension.id] ?? {} }) as Record<string, unknown>,
       secrets: deps.secrets,
     };
 

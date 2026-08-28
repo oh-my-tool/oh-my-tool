@@ -26,6 +26,15 @@ Agents pass only the configured connection name:
 ohmytool run <tool> connection=<name>
 ```
 
+Inspect and validate configured connections without exposing secret names or
+values:
+
+```powershell
+ohmytool connection list
+ohmytool connection check
+ohmytool config check
+```
+
 Passwords are stored separately:
 
 ```powershell

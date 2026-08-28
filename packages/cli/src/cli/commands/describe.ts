@@ -18,7 +18,7 @@ export async function runDescribe(toolName: string): Promise<DescribedTool> {
       risk: descriptor.risk,
       inputSchema: descriptor.inputSchema,
       extension: descriptor.source.id,
-      extensionVersion: "unknown",
+      extensionVersion: descriptor.source.version ?? "unknown",
     };
   });
 }

@@ -26,7 +26,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     } else {
       const eq = arg.indexOf("=");
       if (eq > 0) {
-        keyValues[arg.slice(0, eq)] = arg.slice(eq + 1);
+        const key = arg.slice(0, eq);
+        if (key in keyValues) throw new Error(`duplicate input key '${key}'`);
+        keyValues[key] = arg.slice(eq + 1);
       } else {
         positional.push(arg);
       }

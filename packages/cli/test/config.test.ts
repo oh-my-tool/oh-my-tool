@@ -73,6 +73,15 @@ describe("config", () => {
     expect(c).toHaveProperty("secret");
   });
 
+  test("rejects invalid connection types instead of coercing them", () => {
+    writeFileSync(
+      join(home, "config.toml"),
+      `[extensions.mysql.connections.bad]\nhost = "mysql"\nport = 0\ntls = "false"\n`,
+      "utf8",
+    );
+    expect(() => loadConfig(home)).toThrow(/must be an integer|must be a boolean/);
+  });
+
   test("loads an MCP stdio server definition", () => {
     writeFileSync(
       join(home, "config.toml"),

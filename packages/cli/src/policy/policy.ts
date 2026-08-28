@@ -75,7 +75,7 @@ export function assertReadOnly(sql: string): void {
     throw new PolicyError("only a single read-only statement is allowed");
   }
   const cleaned = stripLiteralsAndComments(sql);
-  if (FORBIDDEN.test(cleaned)) {
+  if (!/^(select|with|show|explain|describe|desc)\b/i.test(cleaned.trim()) || FORBIDDEN.test(cleaned) || /\bfor\s+update\b|\block\s+in\s+share\s+mode\b|\binto\s+(out|dump)file\b|\bload_file\s*\(/i.test(cleaned)) {
     throw new PolicyError("sql contains a non read-only statement");
   }
 }

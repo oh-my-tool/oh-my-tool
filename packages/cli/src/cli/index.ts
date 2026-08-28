@@ -14,15 +14,21 @@ import { AGENT_IDS } from "../integration";
 import { multiselect, isCancel } from "@clack/prompts";
 import { VERSION } from "../version";
 import { runMcpAuth, runMcpList, runMcpLogout } from "./commands/mcp";
+import { runConnectionList, runConnectionCheck, runConfigCheck } from "./commands/connections";
 import { RuntimeError } from "../runtime/errors";
+import { formatAiResult, formatJson, formatOutput, type OutputFormat } from "./output";
 
 const HELP = `Oh My Tool - local and enterprise tools for agents
 
 Usage:
   ohmytool search "<task>"                 search tools by intent
   ohmytool describe <tool>                 inspect a tool and its input schema
-  ohmytool run <tool> [key=value ...]      execute a tool
+  ohmytool run <tool> [key=value ...]      execute a tool (AI-friendly text by default)
   ohmytool run <tool> --stdin              execute with JSON from stdin
+  ohmytool run <tool> ... --json           output the machine-readable JSON result
+  ohmytool connection list                 list configured connections
+  ohmytool connection check                check MySQL/Redis connectivity
+  ohmytool config check                     validate configuration
   ohmytool extension list                  list installed extensions
   ohmytool extension install <path>        install an extension from a local dir
   ohmytool secret set <name>               set a secret (interactive hidden prompt or stdin pipe)
@@ -95,7 +101,15 @@ function readSecretHidden(prompt: string): Promise<string> {
 }
 
 function print(v: unknown): void {
-  console.log(JSON.stringify(v, null, 2));
+  console.log(formatJson(v));
+}
+
+function outputFormat(parsed: ReturnType<typeof parseArgs>): OutputFormat {
+  const format = parsed.options.format ?? (parsed.options.json === "true" ? "json" : undefined);
+  if (format !== undefined && !["json", "text", "table", "csv"].includes(format)) {
+    throw new RuntimeError("INVALID_FORMAT", `unsupported output format '${format}'`);
+  }
+  return parsed.flags.includes("json") ? "json" : (format as OutputFormat | undefined) ?? "text";
 }
 
 function parseAgentIds(raw?: string): AgentId[] | undefined {
@@ -189,9 +203,15 @@ export interface CliDependencies {
 const defaultCliDependencies: CliDependencies = { runMcpAuth, runMcpLogout, runMcpList };
 
 export async function main(argv: string[], dependencies: CliDependencies = defaultCliDependencies): Promise<number> {
-  const parsed = parseArgs(argv);
-  const cmd = parsed.positional[0];
   try {
+    const parsed = parseArgs(argv);
+    const cmd = parsed.positional[0];
+    const allowedFlags = new Set(["help", "version", "json", "stdin", "yes", "dry-run", "force"]);
+    const allowedOptions = new Set(["format", "json", "agents"]);
+    const unknownFlag = parsed.flags.find((flag) => !allowedFlags.has(flag));
+    const unknownOption = Object.keys(parsed.options).find((option) => !allowedOptions.has(option));
+    if (unknownFlag) throw new RuntimeError("INVALID_ARGUMENT", `unknown option '--${unknownFlag}'`);
+    if (unknownOption) throw new RuntimeError("INVALID_ARGUMENT", `unknown option '--${unknownOption}'`);
     switch (cmd) {
       case "search": {
         const q = parsed.positional.slice(1).join(" ");
@@ -205,8 +225,29 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
       case "run": {
         const tool = parsed.positional[1];
         const res = await runTool(tool, parsed.keyValues, parsed.flags.includes("stdin"));
-        print(res);
+        console.log(formatOutput(res, outputFormat(parsed)));
         return res.ok ? 0 : 1;
+      }
+      case "connection": {
+        const action = parsed.positional[1];
+        if (action !== "list" && action !== "check") {
+          console.error("usage: ohmytool connection list | connection check");
+          return 1;
+        }
+        const result = action === "list" ? await runConnectionList() : await runConnectionCheck();
+        const wrapped = { ok: true as const, tool: `connection.${action}`, data: result, meta: {} };
+        console.log(formatOutput(wrapped, outputFormat(parsed)));
+        return 0;
+      }
+      case "config": {
+        if (parsed.positional[1] !== "check") {
+          console.error("usage: ohmytool config check");
+          return 1;
+        }
+        const result = await runConfigCheck();
+        const wrapped = { ok: true as const, tool: "config.check", data: result, meta: {} };
+        console.log(formatOutput(wrapped, outputFormat(parsed)));
+        return 0;
       }
       case "secret": {
         const sub = parsed.positional[1];
