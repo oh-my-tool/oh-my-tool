@@ -19,7 +19,7 @@ beforeEach(() => {
   logs.length = 0;
   console.log = (v: unknown) => logs.push(typeof v === "string" ? v : JSON.stringify(v));
   console.error = (v: unknown) => logs.push(typeof v === "string" ? v : JSON.stringify(v));
-  writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.iot-test]\nhost=\"h\"\nport=3306\ndatabase=\"iot\"\nusername=\"u\"\nsecret=\"s\"\ntls=true\n", "utf8");
+  writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.iot-test]\nenvironment=\"test\"\n[extensions.mysql.connections.iot-test.settings]\nhost=\"h\"\nport=3306\ndatabase=\"iot\"\nusername=\"u\"\ntls=true\n[extensions.mysql.connections.iot-test.secrets]\npassword=\"mysql:iot-test\"\n", "utf8");
 });
 afterEach(() => {
   console.log = origLog;

@@ -30,7 +30,7 @@ beforeEach(() => {
   mkdirSync(home, { recursive: true });
   prev = process.env.OH_MY_TOOL_HOME;
   process.env.OH_MY_TOOL_HOME = home;
-  writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.iot-test]\nhost=\"h\"\nport=3306\ndatabase=\"iot\"\nusername=\"u\"\nsecret=\"s\"\ntls=true\n", "utf8");
+  writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.iot-test]\nenvironment=\"test\"\n[extensions.mysql.connections.iot-test.settings]\nhost=\"h\"\nport=3306\ndatabase=\"iot\"\nusername=\"u\"\ntls=true\n[extensions.mysql.connections.iot-test.secrets]\npassword=\"mysql:iot-test\"\n", "utf8");
 });
 afterEach(() => {
   if (prev === undefined) delete process.env.OH_MY_TOOL_HOME;
@@ -49,6 +49,7 @@ describe("cli commands", () => {
     expect(out.tools.length).toBeGreaterThan(0);
     expect(out.tools[0].name).toBe("mysql.query");
     expect(out.tools[0]).not.toHaveProperty("inputSchema");
+    expect(out.meta).toEqual({ unavailableProviders: [] });
   });
 
   test("describe returns the tool schema", async () => {
@@ -79,7 +80,7 @@ describe("cli commands", () => {
     const res = await runTool("mysql.instances", {}, false);
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error(res.error.message);
-    expect(res.data).toMatchObject({ conn: { connections: { "iot-test": { host: "h", port: 3306 } } } });
+    expect(res.output).toMatchObject({ conn: { connections: { "iot-test": { settings: { host: "h", port: 3306 } } } } });
   });
 
   test("extension list returns installed extensions", async () => {
@@ -127,7 +128,7 @@ describe("cli commands", () => {
   test("extension install installs a local dir", async () => {
     const src = join(tmpdir(), `omt-src-${Date.now()}`);
     mkdirSync(join(src, "src"), { recursive: true });
-    writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "redis", name: "Redis", version: "0.1.0", sdkVersion: "^0.1.0", description: "d", tools: [{ name: "redis.get", description: "g" }] }), "utf8");
+    writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "redis", name: "Redis", version: "0.1.0", sdkVersion: "^0.2.0", description: "d", tools: [{ name: "redis.get", description: "g" }] }), "utf8");
     writeFileSync(join(src, "src", "index.ts"), "export default { handlers: { \"redis.get\": async () => ({ data: {} }) } };", "utf8");
     const ref = await runExtensionInstall(src);
     expect(ref.id).toBe("redis");
@@ -194,14 +195,14 @@ describe("cli commands", () => {
   test("connection list returns all configured instances without secret references", async () => {
     writeFileSync(
       join(home, "config.toml"),
-      "[extensions.mysql.connections.prod]\nenvironment=\"prod\"\nhost=\"mysql.prod\"\nport=3306\ndatabase=\"app\"\nusername=\"app\"\nsecret=\"mysql:prod\"\ntls=true\n[extensions.redis.connections.cache]\nenvironment=\"prod\"\nhost=\"redis.prod\"\nport=6379\ndatabase=\"0\"\nusername=\"default\"\nsecret=\"redis:prod\"\ntls=false\n",
+      "[extensions.mysql.connections.prod]\nenvironment=\"prod\"\n[extensions.mysql.connections.prod.settings]\nhost=\"mysql.prod\"\nport=3306\ndatabase=\"app\"\nusername=\"app\"\ntls=true\n[extensions.mysql.connections.prod.secrets]\npassword=\"mysql:prod\"\n[extensions.redis.connections.cache]\nenvironment=\"prod\"\n[extensions.redis.connections.cache.settings]\nhost=\"redis.prod\"\nport=6379\ndatabase=\"0\"\nusername=\"default\"\ntls=false\n[extensions.redis.connections.cache.secrets]\npassword=\"redis:prod\"\n",
       "utf8",
     );
     const result = await runConnectionList();
     expect(result).toEqual({
       connections: [
-        { extension: "mysql", name: "prod", environment: "prod", host: "mysql.prod", port: 3306, database: "app", username: "app", tls: true, secretConfigured: true },
-        { extension: "redis", name: "cache", environment: "prod", host: "redis.prod", port: 6379, database: "0", username: "default", tls: false, secretConfigured: true },
+        { extension: "mysql", name: "prod", environment: "prod", settings: { host: "mysql.prod", port: 3306, database: "app", username: "app", tls: true }, secretsConfigured: { password: true } },
+        { extension: "redis", name: "cache", environment: "prod", settings: { host: "redis.prod", port: 6379, database: "0", username: "default", tls: false }, secretsConfigured: { password: true } },
       ],
       count: 2,
     });
@@ -209,7 +210,7 @@ describe("cli commands", () => {
   });
 
   test("connection check reports unsupported extensions without connecting", async () => {
-    writeFileSync(join(home, "config.toml"), "[extensions.custom.connections.one]\nhost=\"custom\"\nport=1234\n", "utf8");
+    writeFileSync(join(home, "config.toml"), "[extensions.custom.connections.one.settings]\nhost=\"custom\"\nport=1234\n", "utf8");
     const result = await runConnectionCheck();
     expect(result).toEqual({
       checks: [{ extension: "custom", name: "one", status: "unsupported", code: "CHECK_UNSUPPORTED" }],
@@ -218,7 +219,7 @@ describe("cli commands", () => {
   });
 
   test("connection check uses an installed extension's ping tool", async () => {
-    writeFileSync(join(home, "config.toml"), "[extensions.hbase.connections.one]\nhost=\"hbase\"\nport=2181\n", "utf8");
+    writeFileSync(join(home, "config.toml"), "[extensions.hbase.connections.one.settings]\nhost=\"hbase\"\nport=2181\n", "utf8");
     createFakeExtension(home, {
       id: "hbase",
       tools: [{ name: "hbase.ping", description: "ping", risk: "read", inputSchema: { type: "object", required: ["connection"], properties: { connection: { type: "string" } } } }],

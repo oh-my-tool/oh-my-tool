@@ -1,4 +1,4 @@
-import type { ExecutionContext, ToolDescriptor, ToolProvider, ToolSearchResult } from "./provider";
+import type { ExecutionContext, ProviderStatus, ToolDescriptor, ToolProvider, ToolSearchOptions, ToolSearchResult } from "./provider";
 import type { ExecutionResult } from "./result";
 import { executeRuntimeTool, type CreateExecutionContext, type PolicyPreflight } from "./executor";
 import { RuntimeError } from "./errors";
@@ -20,23 +20,30 @@ interface RuntimeState {
 
 export class ToolRuntime {
   private closePromise?: Promise<void>;
+  private readonly discovery = new Map<string, Promise<void>>();
+  private readonly statuses = new Map<string, ProviderStatus>();
+  private readonly closedProviders = new Set<string>();
 
   constructor(private readonly state: RuntimeState, private readonly registeredProviders: readonly ToolProvider[] = []) {}
 
-  search(query: string): Promise<ToolSearchResult[]> {
-    return Promise.resolve(this.state.tools.search(query));
+  async search(query: string, options?: ToolSearchOptions): Promise<ToolSearchResult[]> {
+    await this.discoverAll();
+    return this.state.tools.search(query, options);
   }
 
-  describe(toolId: string): Promise<ToolDescriptor> {
+  async describe(toolId: string): Promise<ToolDescriptor> {
+    await this.discoverForTarget(toolId);
     const descriptor = this.state.tools.get(toolId);
-    if (!descriptor) return Promise.reject(new RuntimeError("TOOL_NOT_FOUND", `unknown tool '${toolId}'`));
-    return Promise.resolve(descriptor);
+    if (!descriptor) throw this.targetError(toolId);
+    return descriptor;
   }
 
   async run(toolId: string, input: unknown): Promise<ExecutionResult> {
+    await this.discoverForTarget(toolId);
     const descriptor = this.state.tools.get(toolId);
     if (!descriptor) {
-      return { ok: false, toolId, error: { code: "TOOL_NOT_FOUND", message: `unknown tool '${toolId}'` } };
+      const error = this.targetError(toolId);
+      return { ok: false, toolId, error: { code: error.code, message: error.message } };
     }
     const provider = this.state.providers.require(descriptor.provider.id);
     return executeRuntimeTool({
@@ -47,32 +54,45 @@ export class ToolRuntime {
     }, (input ?? {}) as Record<string, unknown>);
   }
 
+  providerStatuses(): readonly ProviderStatus[] {
+    return [...this.statuses.values()].sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   close(): Promise<void> {
     if (this.closePromise) return this.closePromise;
     this.closePromise = (async () => {
       const errors: unknown[] = [];
       for (const provider of [...this.registeredProviders].reverse()) {
-        if (!provider.close) continue;
-        try { await provider.close(); } catch (error) { errors.push(error); }
+        try { await this.closeProvider(provider); } catch (error) { errors.push(error); }
       }
       if (errors.length > 0) throw errors[0];
     })();
     return this.closePromise;
   }
-}
 
-async function closeProviders(providers: readonly ToolProvider[]): Promise<void> {
-  await Promise.allSettled([...providers].reverse().map(async (provider) => {
-    if (provider.close) await provider.close();
-  }));
-}
+  private async discoverAll(): Promise<void> {
+    await Promise.all(this.registeredProviders.map((provider) => this.discoverProvider(provider)));
+  }
 
-export async function createToolRuntime(options: ToolRuntimeOptions): Promise<ToolRuntime> {
-  const providers = new ProviderRegistry();
-  const tools = new ToolRegistry();
-  try {
-    for (const provider of options.providers) {
-      providers.register(provider);
+  private async discoverForTarget(toolId: string): Promise<void> {
+    const nativeProviders = this.registeredProviders.filter((provider) => provider.kind === "native");
+    await Promise.all(nativeProviders.map((provider) => this.discoverProvider(provider)));
+    if (this.state.tools.get(toolId)) return;
+    await Promise.all(this.registeredProviders
+      .filter((provider) => provider.kind !== "native")
+      .map((provider) => this.discoverProvider(provider)));
+  }
+
+  private discoverProvider(provider: ToolProvider): Promise<void> {
+    const current = this.discovery.get(provider.id);
+    if (current) return current;
+    const promise = this.discoverProviderOnce(provider);
+    this.discovery.set(provider.id, promise);
+    return promise;
+  }
+
+  private async discoverProviderOnce(provider: ToolProvider): Promise<void> {
+    try {
       const descriptors = await provider.listTools();
       for (const descriptor of descriptors) {
         if (descriptor.provider.id !== provider.id || descriptor.provider.kind !== provider.kind) {
@@ -82,12 +102,46 @@ export async function createToolRuntime(options: ToolRuntimeOptions): Promise<To
           );
         }
       }
-      tools.register(descriptors);
+      this.state.tools.register(descriptors);
+      this.statuses.set(provider.id, {
+        id: provider.id,
+        kind: provider.kind,
+        status: "available",
+        ...("namespace" in provider && typeof provider.namespace === "string" ? { namespace: provider.namespace } : {}),
+      });
+    } catch (error) {
+      if (provider.kind !== "mcp") throw error;
+      const typed = error as { code?: unknown; message?: unknown };
+      this.statuses.set(provider.id, {
+        id: provider.id,
+        kind: provider.kind,
+        status: "unavailable",
+        ...("namespace" in provider && typeof provider.namespace === "string" ? { namespace: provider.namespace } : {}),
+        code: typeof typed.code === "string" ? typed.code : "PROVIDER_UNAVAILABLE",
+        message: typeof typed.message === "string" ? typed.message : "provider discovery failed",
+      });
+      try { await this.closeProvider(provider); } catch { /* preserve discovery status */ }
     }
-  } catch (error) {
-    await closeProviders(options.providers);
-    throw error;
   }
+
+  private targetError(toolId: string): RuntimeError {
+    const unavailable = this.providerStatuses().find((status) =>
+      status.status === "unavailable" && status.namespace !== undefined && toolId.startsWith(`${status.namespace}.`));
+    if (unavailable) return new RuntimeError("PROVIDER_UNAVAILABLE", `provider '${unavailable.id}' is unavailable`);
+    return new RuntimeError("TOOL_NOT_FOUND", `unknown tool '${toolId}'`);
+  }
+
+  private async closeProvider(provider: ToolProvider): Promise<void> {
+    if (!provider.close || this.closedProviders.has(provider.id)) return;
+    this.closedProviders.add(provider.id);
+    await provider.close();
+  }
+}
+
+export async function createToolRuntime(options: ToolRuntimeOptions): Promise<ToolRuntime> {
+  const providers = new ProviderRegistry();
+  const tools = new ToolRegistry();
+  for (const provider of options.providers) providers.register(provider);
   return new ToolRuntime({
     providers,
     tools,

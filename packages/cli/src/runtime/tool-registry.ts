@@ -1,4 +1,4 @@
-import type { ToolDescriptor, ToolSearchResult } from "./provider";
+import type { ToolDescriptor, ToolSearchOptions, ToolSearchResult } from "./provider";
 import { RuntimeError } from "./errors";
 
 const NAME_WEIGHT = 3;
@@ -25,7 +25,7 @@ export class ToolRegistry {
     return this.tools.get(toolId);
   }
 
-  search(query: string): ToolSearchResult[] {
+  search(query: string, _options?: ToolSearchOptions): ToolSearchResult[] {
     const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return [];
     return [...this.tools.values()]

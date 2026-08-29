@@ -11,6 +11,22 @@ export interface ToolDescriptor {
   source: { id: string; kind: string; version?: string };
 }
 
+export interface ToolSearchOptions {
+  readonly limit?: number;
+  readonly provider?: string;
+  readonly source?: string;
+  readonly risk?: ToolDescriptor["risk"];
+}
+
+export interface ProviderStatus {
+  readonly id: string;
+  readonly kind: string;
+  readonly status: "available" | "unavailable";
+  readonly code?: string;
+  readonly message?: string;
+  readonly namespace?: string;
+}
+
 export type ToolSearchResult = Omit<ToolDescriptor, "inputSchema">;
 
 export interface ExecutionContext {
@@ -22,6 +38,7 @@ export interface ExecutionContext {
 export interface ToolProvider {
   readonly id: string;
   readonly kind: string;
+  readonly namespace?: string;
   listTools(): Promise<readonly ToolDescriptor[]>;
   execute(toolId: string, input: unknown, context: ExecutionContext): Promise<ToolResult>;
   close?(): Promise<void>;

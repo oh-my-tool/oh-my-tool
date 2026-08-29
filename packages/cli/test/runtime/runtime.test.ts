@@ -43,17 +43,34 @@ describe("ToolRuntime", () => {
     expect(events).toEqual(["second", "first"]);
   });
 
-  test("cleans up every provider when discovery fails", async () => {
+  test("isolates an unavailable MCP provider from healthy providers", async () => {
     const events: string[] = [];
     const first = { ...fakeProvider("first", { ...baseDescriptor, provider: { id: "first", kind: "native" } }), async close() { events.push("first"); } };
     const second: ToolProvider = {
-      id: "second", kind: "native",
+      id: "mcp:second", kind: "mcp", namespace: "second",
       async listTools() { throw new Error("discovery failed"); },
       async execute() { return { data: {} }; },
       async close() { events.push("second"); },
     };
-    await expect(createToolRuntime({ ...options, providers: [first, second] })).rejects.toThrow("discovery failed");
+    const runtime = await createToolRuntime({ ...options, providers: [first, second] });
+    expect((await runtime.search("test")).map((tool) => tool.id)).toEqual(["test.echo"]);
+    expect(runtime.providerStatuses()).toContainEqual(expect.objectContaining({ id: "mcp:second", kind: "mcp", status: "unavailable" }));
+    expect(await runtime.run("second.echo", {})).toMatchObject({ ok: false, error: { code: "PROVIDER_UNAVAILABLE" } });
+    await runtime.close();
     expect(events).toEqual(["second", "first"]);
+  });
+
+  test("defers provider discovery until a runtime operation needs it", async () => {
+    let calls = 0;
+    const lazy: ToolProvider = {
+      id: "lazy", kind: "native",
+      async listTools() { calls++; return []; },
+      async execute() { return { data: {} }; },
+    };
+    const runtime = await createToolRuntime({ ...options, providers: [lazy] });
+    expect(calls).toBe(0);
+    await runtime.search("missing");
+    expect(calls).toBe(1);
   });
 
   test("runtime modules do not import CLI modules", () => {
@@ -81,12 +98,14 @@ describe("ToolRuntime", () => {
 
   test("rejects provider descriptor identity mismatch before serving", async () => {
     const bad = fakeProvider("native", { ...baseDescriptor, provider: { id: "other", kind: "native" } });
-    await expect(createToolRuntime({ ...options, providers: [bad] })).rejects.toMatchObject({ code: "PROVIDER_DESCRIPTOR_MISMATCH" });
+    const runtime = await createToolRuntime({ ...options, providers: [bad] });
+    await expect(runtime.search("test")).rejects.toMatchObject({ code: "PROVIDER_DESCRIPTOR_MISMATCH" });
   });
 
   test("rejects duplicate tool IDs across providers before serving", async () => {
     const first = fakeProvider("one", { ...baseDescriptor, provider: { id: "one", kind: "native" } });
     const second = fakeProvider("two", { ...baseDescriptor, provider: { id: "two", kind: "native" } });
-    await expect(createToolRuntime({ ...options, providers: [first, second] })).rejects.toMatchObject({ code: "DUPLICATE_TOOL_ID" });
+    const runtime = await createToolRuntime({ ...options, providers: [first, second] });
+    await expect(runtime.search("test")).rejects.toMatchObject({ code: "DUPLICATE_TOOL_ID" });
   });
 });

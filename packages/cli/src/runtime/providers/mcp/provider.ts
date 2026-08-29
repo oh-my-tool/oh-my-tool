@@ -17,6 +17,7 @@ export interface McpProviderOptions {
 export class McpProvider implements ToolProvider {
   readonly id: string;
   readonly kind = "mcp";
+  readonly namespace: string;
   private session?: McpSession;
   private descriptors?: readonly ToolDescriptor[];
   private readonly routes = new Map<string, string>();
@@ -24,6 +25,7 @@ export class McpProvider implements ToolProvider {
 
   constructor(private readonly options: McpProviderOptions) {
     this.id = `mcp:${options.serverId}`;
+    this.namespace = options.config.namespace;
   }
 
   async listTools(): Promise<readonly ToolDescriptor[]> {
