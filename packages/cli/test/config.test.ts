@@ -2,7 +2,7 @@ import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { loadConfig, getConnectionConfig, listConnections } from "../src/config/config";
+import { loadConfig, getConnectionConfig, listConnections, validateConfiguredConnections } from "../src/config/config";
 import type { McpHttpServerConfig } from "../src/config/config";
 
 let home: string;
@@ -19,21 +19,25 @@ afterEach(() => {
 const toml = `
 [extensions.mysql.connections.iot-test]
 environment = "test"
+[extensions.mysql.connections.iot-test.settings]
 host = "mysql-test.company.internal"
 port = 3306
 database = "iot"
 username = "iot_readonly"
-secret = "mysql:iot-test"
 tls = true
+[extensions.mysql.connections.iot-test.secrets]
+password = "mysql:iot-test"
 
 [extensions.mysql.connections.prod]
 environment = "prod"
+[extensions.mysql.connections.prod.settings]
 host = "mysql-prod.company.internal"
 port = 3306
 database = "iot"
 username = "iot_readonly"
-secret = "mysql:prod"
 tls = true
+[extensions.mysql.connections.prod.secrets]
+password = "mysql:prod"
 `;
 
 describe("config", () => {
@@ -48,9 +52,9 @@ describe("config", () => {
     const cfg = loadConfig(home);
     const c = getConnectionConfig(cfg, "mysql", "iot-test");
     expect(c).toBeDefined();
-    expect(c!.host).toBe("mysql-test.company.internal");
-    expect(c!.database).toBe("iot");
-    expect(c!.secret).toBe("mysql:iot-test");
+    expect(c!.settings.host).toBe("mysql-test.company.internal");
+    expect(c!.settings.database).toBe("iot");
+    expect(c!.secrets.password).toBe("mysql:iot-test");
   });
 
   test("unknown connection returns undefined", () => {
@@ -65,21 +69,32 @@ describe("config", () => {
     expect(getConnectionConfig(cfg, "mysql", "iot-test")).toBeUndefined();
   });
 
-  test("agent-facing secret key is not exposed as a password", () => {
+  test("generic connections keep secret references separate from settings", () => {
     writeFileSync(join(home, "config.toml"), toml, "utf8");
     const cfg = loadConfig(home);
     const c = getConnectionConfig(cfg, "mysql", "iot-test")!;
     expect(c).not.toHaveProperty("password");
-    expect(c).toHaveProperty("secret");
+    expect(c).toHaveProperty("secrets.password");
   });
 
   test("rejects invalid connection types instead of coercing them", () => {
     writeFileSync(
       join(home, "config.toml"),
-      `[extensions.mysql.connections.bad]\nhost = "mysql"\nport = 0\ntls = "false"\n`,
+      `[extensions.mysql.connections.bad]\nlegacy = true\n`,
       "utf8",
     );
-    expect(() => loadConfig(home)).toThrow(/must be an integer|must be a boolean/);
+    expect(() => loadConfig(home)).toThrow(/unknown field|legacy|environment|settings|secrets/i);
+  });
+
+  test("validates generic settings with an extension connection schema", () => {
+    writeFileSync(join(home, "config.toml"), `[extensions.kafka.connections.prod]\n[extensions.kafka.connections.prod.settings]\nclientId = "omt"\n`, "utf8");
+    const cfg = loadConfig(home);
+    expect(() => validateConfiguredConnections(cfg, [{
+      id: "kafka",
+      manifest: { connectionSchema: {
+        type: "object", required: ["brokers"], properties: { brokers: { type: "array" } },
+      } },
+    }] as any)).toThrow(/brokers/);
   });
 
   test("loads an MCP stdio server definition", () => {

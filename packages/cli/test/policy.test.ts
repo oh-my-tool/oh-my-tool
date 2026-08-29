@@ -14,12 +14,8 @@ const config: Config = {
       connections: {
         "iot-test": {
           environment: "test",
-          host: "h",
-          port: 3306,
-          database: "iot",
-          username: "u",
-          secret: "s",
-          tls: true,
+          settings: { host: "h", port: 3306, database: "iot", username: "u", tls: true },
+          secrets: { password: "mysql:iot-test" },
         },
       },
     },
@@ -92,6 +88,12 @@ describe("validateConnectionInput", () => {
     expect(() =>
       validateConnectionInput({ connection: "iot-test", password: "x" }, config, "mysql"),
     ).toThrow(/password/i);
+  });
+
+  test("rejects agent-supplied generic connection records", () => {
+    for (const key of ["settings", "secrets"]) {
+      expect(() => validateConnectionInput({ connection: "iot-test", [key]: {} }, config, "mysql")).toThrow(key);
+    }
   });
 });
 

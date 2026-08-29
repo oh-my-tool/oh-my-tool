@@ -16,7 +16,7 @@ export function createFakeExtension(
 ): { id: string; version: string; dir: string; entry: string } {
   const id = opts.id ?? "mysql";
   const version = opts.version ?? "0.1.0";
-  const sdkVersion = opts.sdkVersion ?? "^0.1.0";
+  const sdkVersion = opts.sdkVersion ?? "^0.2.0";
   const dir = join(home, "extensions", id, version);
   mkdirSync(dir, { recursive: true });
 

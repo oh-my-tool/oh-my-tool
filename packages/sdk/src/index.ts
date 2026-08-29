@@ -1,4 +1,4 @@
-export const OMT_API_VERSION = "0.1.0";
+export const OMT_API_VERSION = "0.2.0";
 
 export interface ToolManifest {
   name: string;
@@ -16,6 +16,8 @@ export interface ExtensionManifest {
   description: string;
   keywords?: string[];
   entry?: string;
+  connectionSchema?: Record<string, unknown>;
+  connectionCheckTool?: string;
   tools: ToolManifest[];
 }
 

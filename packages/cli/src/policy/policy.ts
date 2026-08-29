@@ -81,6 +81,8 @@ export function assertReadOnly(sql: string): void {
 }
 
 const FORBIDDEN_INPUT = new Set([
+  "settings",
+  "secrets",
   "host",
   "username",
   "password",

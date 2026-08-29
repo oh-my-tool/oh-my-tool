@@ -6,7 +6,7 @@ const validManifest: ExtensionManifest = {
   id: "mysql",
   name: "MySQL",
   version: "0.1.0",
-  sdkVersion: "^0.1.0",
+  sdkVersion: "^0.2.0",
   description: "query mysql",
   keywords: ["mysql", "sql"],
   tools: [
@@ -84,17 +84,28 @@ describe("validateManifest", () => {
     };
     expect(() => validateManifest(bad)).toThrow(/prefix/i);
   });
+
+  test("accepts and validates connection metadata", () => {
+    const manifest = {
+      ...validManifest,
+      connectionSchema: { type: "object", properties: { host: { type: "string" } } },
+      connectionCheckTool: "mysql.query",
+    };
+    expect(() => validateManifest(manifest)).not.toThrow();
+    expect(() => validateManifest({ ...manifest, connectionSchema: "bad" } as any)).toThrow(/connectionSchema/i);
+    expect(() => validateManifest({ ...manifest, connectionCheckTool: "redis.ping" })).toThrow(/check tool|prefixed|declared/i);
+  });
 });
 
 describe("checkSdkCompatibility", () => {
   test("accepts a matching sdk range", () => {
-    expect(() => checkSdkCompatibility("^0.1.0")).not.toThrow();
-    expect(() => checkSdkCompatibility("0.1.0")).not.toThrow();
+    expect(() => checkSdkCompatibility("^0.2.0")).not.toThrow();
+    expect(() => checkSdkCompatibility("0.2.0")).not.toThrow();
   });
 
   test("rejects an incompatible sdk range", () => {
     expect(() => checkSdkCompatibility("^99.0.0")).toThrow(/requires sdk/);
-    expect(() => checkSdkCompatibility("^0.2.0")).toThrow(/requires sdk/);
+    expect(() => checkSdkCompatibility("^0.1.0")).toThrow(/requires sdk/);
   });
 
   test("rejects a non-empty-but-malformed range", () => {

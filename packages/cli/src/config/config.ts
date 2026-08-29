@@ -1,15 +1,19 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RuntimeError } from "../runtime/errors";
+import { validateInput, type Schema } from "../runtime/schema";
+import type { InstalledExtension } from "../extension/discovery";
 
 export interface ConnectionConfig {
-  environment: string;
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  secret: string;
-  tls: boolean;
+  environment?: string;
+  settings: Record<string, unknown>;
+  secrets: Record<string, string>;
+}
+
+export interface SanitizedConnectionConfig {
+  environment?: string;
+  settings: Record<string, unknown>;
+  secretsConfigured: Record<string, boolean>;
 }
 
 export interface McpCommonServerConfig { readonly enabled: true; readonly namespace: string; }
@@ -44,30 +48,34 @@ function parseConnection(extensionId: string, name: string, value: unknown): Con
   const path = `extensions.${extensionId}.connections.${name}`;
   if (value === null || typeof value !== "object" || Array.isArray(value)) invalidConnection(path, "must be a table");
   const raw = value as Record<string, unknown>;
-  const stringField = (key: string, fallback = ""): string => {
-    const entry = raw[key];
-    if (entry === undefined) return fallback;
-    if (typeof entry !== "string") invalidConnection(`${path}.${key}`, "must be a string");
-    return entry;
-  };
-  const host = stringField("host");
-  if (host.trim().length === 0) invalidConnection(`${path}.host`, "must be a non-empty string");
-  const defaultPort = extensionId === "redis" ? 6379 : 3306;
-  const port = raw.port === undefined ? defaultPort : raw.port;
-  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
-    invalidConnection(`${path}.port`, "must be an integer from 1 through 65535");
-  }
-  const tls = raw.tls === undefined ? false : raw.tls;
-  if (typeof tls !== "boolean") invalidConnection(`${path}.tls`, "must be a boolean");
+  const allowed = new Set(["environment", "settings", "secrets"]);
+  for (const key of Object.keys(raw)) if (!allowed.has(key)) invalidConnection(`${path}.${key}`, "unknown connection field");
+  const environment = raw.environment;
+  if (environment !== undefined && typeof environment !== "string") invalidConnection(`${path}.environment`, "must be a string");
+  const settings = parseSettingsMap(raw.settings, `${path}.settings`);
+  const secrets = parseSecretMap(raw.secrets, `${path}.secrets`);
   return {
-    environment: stringField("environment"),
-    host,
-    port,
-    database: stringField("database"),
-    username: stringField("username"),
-    secret: stringField("secret"),
-    tls,
+    ...(environment === undefined ? {} : { environment }),
+    settings,
+    secrets,
   };
+}
+
+function parseSettingsMap(value: unknown, path: string): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== "object" || Array.isArray(value)) invalidConnection(path, "must be a table");
+  return { ...(value as Record<string, unknown>) };
+}
+
+function parseSecretMap(value: unknown, path: string): Record<string, string> {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== "object" || Array.isArray(value)) invalidConnection(path, "must be a table");
+  const result: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entry !== "string" || entry.length === 0) invalidConnection(`${path}.${key}`, "must be a non-empty string");
+    result[key] = entry;
+  }
+  return result;
 }
 
 function parseStringMap(value: unknown, path: string): Record<string, string> {
@@ -191,17 +199,32 @@ export function loadConfig(homeDir: string): Config {
 export function getConnectionConfig(cfg: Config, extensionId: string, connection: string): ConnectionConfig | undefined { return cfg.extensions[extensionId]?.connections[connection]; }
 export function listConnections(cfg: Config, extensionId: string): string[] { return Object.keys(cfg.extensions[extensionId]?.connections ?? {}); }
 
-export function sanitizeExtensionConnections(cfg: Config): Record<string, Record<string, Omit<ConnectionConfig, "secret"> & { secretConfigured: boolean }> > {
+export function sanitizeExtensionConnections(cfg: Config): Record<string, Record<string, SanitizedConnectionConfig>> {
   return Object.fromEntries(Object.entries(cfg.extensions).map(([extensionId, extension]) => [
     extensionId,
     Object.fromEntries(Object.entries(extension.connections).map(([name, connection]) => [name, {
-      environment: connection.environment,
-      host: connection.host,
-      port: connection.port,
-      database: connection.database,
-      username: connection.username,
-      tls: connection.tls,
-      secretConfigured: connection.secret.length > 0,
+      ...(connection.environment === undefined ? {} : { environment: connection.environment }),
+      settings: { ...connection.settings },
+      secretsConfigured: Object.fromEntries(Object.keys(connection.secrets).map((key) => [key, true])),
     }])),
   ]));
+}
+
+export function validateConfiguredConnections(
+  cfg: Config,
+  installedExtensions: readonly InstalledExtension[],
+): void {
+  const manifests = new Map(installedExtensions.map((extension) => [extension.id, extension.manifest]));
+  for (const [extensionId, extension] of Object.entries(cfg.extensions)) {
+    const schema = manifests.get(extensionId)?.connectionSchema;
+    if (schema === undefined) continue;
+    for (const [name, connection] of Object.entries(extension.connections)) {
+      try {
+        validateInput(schema as Schema, connection.settings, { applyDefaults: false });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        invalidConnection(`extensions.${extensionId}.connections.${name}.settings`, message);
+      }
+    }
+  }
 }

@@ -35,6 +35,11 @@ export function validateManifest(manifest: ExtensionManifest): void {
   if (!manifest.sdkVersion || typeof manifest.sdkVersion !== "string") {
     throw new ManifestError("manifest must contain a string 'sdkVersion'");
   }
+  if (manifest.connectionSchema !== undefined && (
+    manifest.connectionSchema === null || typeof manifest.connectionSchema !== "object" || Array.isArray(manifest.connectionSchema)
+  )) {
+    throw new ManifestError("manifest 'connectionSchema' must be an object");
+  }
 
   const seen = new Set<string>();
   for (const tool of manifest.tools) {
@@ -51,6 +56,19 @@ export function validateManifest(manifest: ExtensionManifest): void {
       throw new ManifestError(
         `tool '${tool.name}' must be prefixed by extension id '${manifest.id}.'`,
       );
+    }
+  }
+
+  if (manifest.connectionCheckTool !== undefined) {
+    if (typeof manifest.connectionCheckTool !== "string" || manifest.connectionCheckTool.length === 0) {
+      throw new ManifestError("manifest 'connectionCheckTool' must be a non-empty string");
+    }
+    const checkTool = manifest.tools.find((tool) => tool.name === manifest.connectionCheckTool);
+    if (!checkTool || !manifest.connectionCheckTool.startsWith(`${manifest.id}.`)) {
+      throw new ManifestError("manifest 'connectionCheckTool' must name a declared tool prefixed by the extension id");
+    }
+    if ((checkTool.risk ?? "read") !== "read") {
+      throw new ManifestError("manifest 'connectionCheckTool' must be read-only");
     }
   }
 }
