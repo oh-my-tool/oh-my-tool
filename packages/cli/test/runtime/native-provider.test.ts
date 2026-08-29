@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { NativeExtensionProvider } from "../../src/runtime/providers/native/provider";
 import { createToolRuntime } from "../../src/runtime/runtime";
+import { discoverExtensions } from "../../src/extension/discovery";
 
 const homes: string[] = [];
 
@@ -59,6 +60,22 @@ describe("NativeExtensionProvider", () => {
       secrets: { async get() { return undefined; }, async set() {}, async delete() {} },
     });
     expect(result.data).toEqual({ value: "hello" });
+  });
+
+  test("reuses the discovery snapshot for execute", async () => {
+    const home = fixture(false);
+    let calls = 0;
+    const provider = new NativeExtensionProvider(home, () => {
+      calls++;
+      return discoverExtensions(home);
+    });
+    await provider.listTools();
+    await provider.execute("test.echo", { value: "hello" }, {
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+      config: {},
+      secrets: { async get() { return undefined; }, async set() {}, async delete() {} },
+    });
+    expect(calls).toBe(1);
   });
 
   test("keeps handler loading and execution context out of runtime discovery", async () => {

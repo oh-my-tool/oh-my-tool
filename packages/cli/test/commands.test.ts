@@ -222,6 +222,7 @@ describe("cli commands", () => {
     writeFileSync(join(home, "config.toml"), "[extensions.hbase.connections.one.settings]\nhost=\"hbase\"\nport=2181\n", "utf8");
     createFakeExtension(home, {
       id: "hbase",
+      connectionCheckTool: "hbase.ping",
       tools: [{ name: "hbase.ping", description: "ping", risk: "read", inputSchema: { type: "object", required: ["connection"], properties: { connection: { type: "string" } } } }],
     });
 

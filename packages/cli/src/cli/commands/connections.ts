@@ -1,18 +1,15 @@
-import { loadConfig } from "../../config/config";
+import { loadConfig, sanitizeExtensionConnections, validateConfiguredConnections } from "../../config/config";
 import { createPaths } from "../../paths";
 import { prepareHome } from "../../migration";
 import { withRuntime } from "../context";
+import { discoverExtensions } from "../../extension/discovery";
 
 export interface ConnectionSummary {
   extension: string;
   name: string;
-  environment: string;
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  tls: boolean;
-  secretConfigured: boolean;
+  environment?: string;
+  settings: Record<string, unknown>;
+  secretsConfigured: Record<string, boolean>;
 }
 
 export interface ConnectionListResult {
@@ -43,20 +40,15 @@ async function configuredConnections(): Promise<ConnectionListResult> {
   const paths = createPaths();
   await prepareHome(paths);
   const config = loadConfig(paths.home);
-  const connections = Object.entries(config.extensions)
+  const sanitized = sanitizeExtensionConnections(config);
+  const connections = Object.entries(sanitized)
     .sort(([left], [right]) => left.localeCompare(right))
-    .flatMap(([extension, value]) => Object.entries(value.connections)
+    .flatMap(([extension, value]) => Object.entries(value)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([name, connection]) => ({
         extension,
         name,
-        environment: connection.environment,
-        host: connection.host,
-        port: connection.port,
-        database: connection.database,
-        username: connection.username,
-        tls: connection.tls,
-        secretConfigured: connection.secret.length > 0,
+        ...connection,
       })));
   return { connections, count: connections.length };
 }
@@ -69,6 +61,7 @@ export async function runConfigCheck(): Promise<ConfigCheckResult> {
   const paths = createPaths();
   await prepareHome(paths);
   const config = loadConfig(paths.home);
+  validateConfiguredConnections(config, discoverExtensions(paths.home));
   return {
     valid: true,
     connectionCount: Object.values(config.extensions).reduce((count, extension) => count + Object.keys(extension.connections).length, 0),
@@ -78,17 +71,32 @@ export async function runConfigCheck(): Promise<ConfigCheckResult> {
 
 export async function runConnectionCheck(): Promise<ConnectionCheckResult> {
   const list = await configuredConnections();
+  const paths = createPaths();
+  const checkTools = new Map(discoverExtensions(paths.home).map((extension) => [extension.id, extension.manifest.connectionCheckTool]));
   return withRuntime(async (runtime) => {
-    const checks: ConnectionCheck[] = [];
-    for (const connection of list.connections) {
+    const checks: ConnectionCheck[] = await boundedMap(list.connections, 4, async (connection) => {
+      const toolId = checkTools.get(connection.extension);
+      if (!toolId) return { extension: connection.extension, name: connection.name, status: "unsupported", code: "CHECK_UNSUPPORTED" };
       const started = Date.now();
-      const result = await runtime.run(`${connection.extension}.ping`, { connection: connection.name });
-      checks.push(result.ok
+      const result = await runtime.run(toolId, { connection: connection.name });
+      return result.ok
         ? { extension: connection.extension, name: connection.name, status: "ok", durationMs: Date.now() - started }
-        : result.error?.code === "TOOL_NOT_FOUND"
-          ? { extension: connection.extension, name: connection.name, status: "unsupported", code: "CHECK_UNSUPPORTED" }
-          : { extension: connection.extension, name: connection.name, status: "error", code: result.error?.code ?? "CHECK_FAILED", durationMs: Date.now() - started });
-    }
+        : { extension: connection.extension, name: connection.name, status: "error", code: result.error.code ?? "CHECK_FAILED", durationMs: Date.now() - started };
+    });
     return { checks, count: checks.length };
   }, { includeMcp: false });
+}
+
+async function boundedMap<T, R>(values: readonly T[], concurrency: number, worker: (value: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let next = 0;
+  async function consume(): Promise<void> {
+    while (true) {
+      const index = next++;
+      if (index >= values.length) return;
+      results[index] = await worker(values[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, () => consume()));
+  return results;
 }

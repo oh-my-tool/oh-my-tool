@@ -90,4 +90,16 @@ describe("ToolRegistry", () => {
     ]);
     expect(registry.search("github repository")[0].id).toBe("github.search");
   });
+
+  test("search applies exact and prefix ranking with filters and a limit", () => {
+    const registry = new ToolRegistry();
+    registry.register([
+      mysqlQuery,
+      { ...mysqlQuery, id: "mysql.schema", description: "inspect schema", keywords: ["schema"], source: { id: "mysql", kind: "extension" } },
+      { ...mysqlQuery, id: "redis.get", provider: { id: "remote", kind: "mcp" }, source: { id: "redis", kind: "mcp-server" }, risk: "write" },
+    ]);
+    const results = registry.search("mysql", { limit: 1, provider: "native", source: "mysql", risk: "read" });
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe("mysql.query");
+  });
 });

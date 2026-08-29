@@ -1,8 +1,9 @@
 import { withRuntime } from "../context";
+import type { ToolSearchOptions } from "../../runtime/provider";
 
-export async function runSearch(query: string): Promise<{ tools: Array<Record<string, unknown>>; meta: { unavailableProviders: Array<Record<string, unknown>> } }> {
+export async function runSearch(query: string, options: ToolSearchOptions = {}): Promise<{ tools: Array<Record<string, unknown>>; meta: { unavailableProviders: Array<Record<string, unknown>> } }> {
   return withRuntime(async (runtime) => {
-    const descriptors = await runtime.search(query);
+    const descriptors = await runtime.search(query, options);
     return {
       tools: descriptors.map((descriptor) => ({
         name: descriptor.id,

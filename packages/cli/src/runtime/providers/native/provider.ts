@@ -8,7 +8,15 @@ export class NativeExtensionProvider implements ToolProvider {
   readonly id = "native";
   readonly kind = "native";
 
-  constructor(private readonly homeOrPaths: string | Pick<OhMyToolPaths, "home">) {}
+  private readonly discover: (home: string) => InstalledExtension[];
+  private snapshot?: { extensions: InstalledExtension[]; routes: Map<string, InstalledExtension> };
+
+  constructor(
+    private readonly homeOrPaths: string | Pick<OhMyToolPaths, "home">,
+    discover: (home: string) => InstalledExtension[] = discoverExtensions,
+  ) {
+    this.discover = discover;
+  }
 
   private home(): string {
     return typeof this.homeOrPaths === "string" ? this.homeOrPaths : this.homeOrPaths.home;
@@ -16,7 +24,7 @@ export class NativeExtensionProvider implements ToolProvider {
 
   async listTools(): Promise<readonly ToolDescriptor[]> {
     const descriptors: ToolDescriptor[] = [];
-    for (const extension of discoverExtensions(this.home())) {
+    for (const extension of this.getSnapshot().extensions) {
       for (const tool of extension.manifest.tools) {
         descriptors.push({
           id: tool.name,
@@ -40,18 +48,26 @@ export class NativeExtensionProvider implements ToolProvider {
   }
 
   async execute(toolId: string, input: unknown, context: ExecutionContext): Promise<ToolResult> {
-    const extension = this.findExtension(toolId);
+    const extension = this.getSnapshot().routes.get(toolId);
+    if (!extension) throw new Error(`unknown native tool '${toolId}'`);
     const definition = await loadExtension(extension);
     const handler = definition.handlers[toolId];
     if (!handler) throw new Error(`no handler for ${toolId}`);
     return handler({ toolName: toolId, logger: context.logger, config: context.config, secrets: context.secrets }, input);
   }
 
-  private findExtension(toolId: string): InstalledExtension {
-    const extension = discoverExtensions(this.home()).find((candidate) =>
-      candidate.manifest.tools.some((tool) => tool.name === toolId),
-    );
-    if (!extension) throw new Error(`unknown native tool '${toolId}'`);
-    return extension;
+  async hasTool(toolId: string): Promise<boolean> {
+    return this.getSnapshot().routes.has(toolId);
+  }
+
+  private getSnapshot(): { extensions: InstalledExtension[]; routes: Map<string, InstalledExtension> } {
+    if (this.snapshot) return this.snapshot;
+    const extensions = this.discover(this.home());
+    const routes = new Map<string, InstalledExtension>();
+    for (const extension of extensions) {
+      for (const tool of extension.manifest.tools) routes.set(tool.name, extension);
+    }
+    this.snapshot = { extensions, routes };
+    return this.snapshot;
   }
 }

@@ -121,6 +121,23 @@ function parseAgentIds(raw?: string): AgentId[] | undefined {
   return [...new Set(values as AgentId[])];
 }
 
+function parseSearchOptions(options: Record<string, string>): { limit?: number; provider?: string; source?: string; risk?: "read" | "write" | "admin" } {
+  const limit = options.limit === undefined ? undefined : Number(options.limit);
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+    throw new RuntimeError("INVALID_ARGUMENT", "search --limit must be a positive integer");
+  }
+  const risk = options.risk;
+  if (risk !== undefined && risk !== "read" && risk !== "write" && risk !== "admin") {
+    throw new RuntimeError("INVALID_ARGUMENT", `unsupported search risk '${risk}'`);
+  }
+  return {
+    ...(limit === undefined ? {} : { limit }),
+    ...(options.provider === undefined ? {} : { provider: options.provider }),
+    ...(options.source === undefined ? {} : { source: options.source }),
+    ...(risk === undefined ? {} : { risk }),
+  };
+}
+
 function printDetected(agents: AgentDetection[]): void {
   console.log("Detected agents:\n");
   for (const agent of agents) console.log(`✓ ${agent.variant ?? agent.displayName}`);
@@ -207,7 +224,7 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
     const parsed = parseArgs(argv);
     const cmd = parsed.positional[0];
     const allowedFlags = new Set(["help", "version", "json", "stdin", "yes", "dry-run", "force"]);
-    const allowedOptions = new Set(["format", "json", "agents"]);
+    const allowedOptions = new Set(["format", "json", "agents", "limit", "provider", "source", "risk"]);
     const unknownFlag = parsed.flags.find((flag) => !allowedFlags.has(flag));
     const unknownOption = Object.keys(parsed.options).find((option) => !allowedOptions.has(option));
     if (unknownFlag) throw new RuntimeError("INVALID_ARGUMENT", `unknown option '--${unknownFlag}'`);
@@ -215,7 +232,7 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
     switch (cmd) {
       case "search": {
         const q = parsed.positional.slice(1).join(" ");
-        print(await runSearch(q));
+        print(await runSearch(q, parseSearchOptions(parsed.options)));
         return 0;
       }
       case "describe": {

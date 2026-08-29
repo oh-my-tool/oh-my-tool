@@ -7,6 +7,8 @@ export interface FakeExtensionOpts {
   sdkVersion?: string;
   tools?: Array<Record<string, unknown>>;
   entry?: string;
+  connectionSchema?: Record<string, unknown>;
+  connectionCheckTool?: string;
 }
 
 /** Creates <home>/extensions/<id>/<version>/ with a manifest, package.json and entry. */
@@ -44,6 +46,8 @@ export function createFakeExtension(
     sdkVersion,
     description: `fake ${id}`,
     keywords: [id, "sql"],
+    ...(opts.connectionSchema === undefined ? {} : { connectionSchema: opts.connectionSchema }),
+    ...(opts.connectionCheckTool === undefined ? {} : { connectionCheckTool: opts.connectionCheckTool }),
     tools,
   };
 
