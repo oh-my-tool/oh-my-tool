@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { validateInput } from "../src/core/schema";
-import { OmtError } from "../src/core/registry";
+import { validateInput } from "../src/runtime/schema";
+import { RuntimeError as OmtError } from "../src/runtime/errors";
 
 const schema = {
   type: "object",

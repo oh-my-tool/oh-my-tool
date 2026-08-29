@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { OmtOk } from "../src/core/result";
+import type { ExecutionOk } from "../src/runtime/result";
 
 describe("AI-friendly CLI output", () => {
   test("renders mysql rows without a separate column-name row", async () => {
@@ -9,10 +9,10 @@ describe("AI-friendly CLI output", () => {
 
     const output = module.formatAiResult({
       ok: true,
-      tool: "mysql.query",
-      data: { columns: ["id", "name", "age"], rows: [[1, "Alice", 18], [2, "Bob", 20]] },
+      toolId: "mysql.query",
+      output: { columns: ["id", "name", "age"], rows: [[1, "Alice", 18], [2, "Bob", 20]] },
       meta: { returnedRows: 2, connection: "iot-test" },
-    } satisfies OmtOk);
+    } satisfies ExecutionOk);
 
     expect(output).toBe([
       "status: ok",
@@ -32,10 +32,10 @@ describe("AI-friendly CLI output", () => {
 
     const output = module.formatAiResult({
       ok: true,
-      tool: "redis.instances",
-      data: { instances: [{ name: "iot-test", host: "redis.local" }], count: 1 },
+      toolId: "redis.instances",
+      output: { instances: [{ name: "iot-test", host: "redis.local" }], count: 1 },
       meta: { connectionType: "redis" },
-    } satisfies OmtOk);
+    } satisfies ExecutionOk);
 
     expect(output).toContain("status: ok");
     expect(output).toContain("instances:");
@@ -46,8 +46,8 @@ describe("AI-friendly CLI output", () => {
   test("renders an empty object inside a generic array without throwing", async () => {
     const output = (await import("../src/cli/output")).formatAiResult({
       ok: true,
-      tool: "test.result",
-      data: { items: [{}] },
+      toolId: "test.result",
+      output: { items: [{}] },
       meta: {},
     });
 
@@ -64,8 +64,8 @@ describe("AI-friendly CLI output", () => {
     const module = await import("../src/cli/output");
     expect(module.formatOutput({
       ok: true,
-      tool: "mysql.query",
-      data: { columns: ["id", "name"], rows: [[1, "Alice"]] },
+      toolId: "mysql.query",
+      output: { columns: ["id", "name"], rows: [[1, "Alice"]] },
       meta: {},
     }, "csv")).toBe("id,name\n1,Alice");
   });

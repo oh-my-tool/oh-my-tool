@@ -16,7 +16,7 @@ function fixture(poison: boolean): string {
     id: "test",
     name: "Test",
     version: "0.1.0",
-    sdkVersion: "^0.1.0",
+    sdkVersion: "^0.2.0",
     description: "test extension",
     tools: [{ name: "test.echo", description: "echo", keywords: ["echo"], risk: "read", inputSchema: { type: "object" } }],
   }), "utf8");

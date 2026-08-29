@@ -1,25 +1,19 @@
 import { coerceInput } from "../parseArgs";
 import { withRuntime } from "../context";
-import type { OmtResult } from "../../core/result";
+import type { ExecutionResult } from "../../runtime/result";
 
 export async function runTool(
   toolName: string,
   keyValues: Record<string, string>,
   useStdin: boolean,
-): Promise<OmtResult> {
+): Promise<ExecutionResult> {
   let input: Record<string, unknown>;
   if (useStdin) {
     input = await readStdinJson();
   } else {
     input = coerceInput(keyValues);
   }
-  return withRuntime(async (runtime) => {
-    const result = await runtime.run(toolName, input);
-    if (result.ok) {
-      return { ok: true, tool: toolName, data: result.output, meta: result.meta ?? {} };
-    }
-    return { ok: false, tool: toolName, error: result.error ?? { code: "EXECUTION_FAILED", message: "execution failed" } };
-  }, { targetTool: toolName });
+  return withRuntime((runtime) => runtime.run(toolName, input), { targetTool: toolName });
 }
 
 function readStdinJson(): Promise<Record<string, unknown>> {

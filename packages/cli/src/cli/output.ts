@@ -1,24 +1,24 @@
-import type { OmtResult } from "../core/result";
+import type { ExecutionResult } from "../runtime/result";
 
 export type OutputFormat = "text" | "json" | "table" | "csv";
 
-export function formatAiResult(result: OmtResult): string {
-  const lines = [`status: ${result.ok ? "ok" : "error"}`, `tool: ${result.tool}`];
+export function formatAiResult(result: ExecutionResult): string {
+  const lines = [`status: ${result.ok ? "ok" : "error"}`, `tool: ${result.toolId}`];
   if (!result.ok) {
     lines.push("error:");
     appendObject(lines, result.error, 2);
     return lines.join("\n");
   }
 
-  if (isRowsResult(result.data)) {
+  if (isRowsResult(result.output)) {
     lines.push("rows:");
-    for (const row of result.data.rows) lines.push(formatRow(row));
-    lines.push(`row_count: ${result.data.rows.length}`);
-    if (result.data.truncated === true) lines.push("truncated: true");
+    for (const row of result.output.rows) lines.push(formatRow(row));
+    lines.push(`row_count: ${result.output.rows.length}`);
+    if (result.output.truncated === true) lines.push("truncated: true");
     appendMeta(lines, result.meta, new Set(["returnedRows"]), false);
   } else {
     lines.push("data:");
-    appendValue(lines, result.data, 2);
+    appendValue(lines, result.output, 2);
     appendMeta(lines, result.meta);
   }
   return lines.join("\n");
@@ -36,17 +36,17 @@ export function formatJson(value: unknown): string {
   }, 2) ?? "null";
 }
 
-export function formatOutput(result: OmtResult, format: OutputFormat): string {
+export function formatOutput(result: ExecutionResult, format: OutputFormat): string {
   if (format === "json") return formatJson(result);
   if (format === "csv" || format === "table") return formatDelimited(result, format === "csv" ? "," : "\t");
   return formatAiResult(result);
 }
 
-function formatDelimited(result: OmtResult, delimiter: string): string {
+function formatDelimited(result: ExecutionResult, delimiter: string): string {
   if (!result.ok) return formatAiResult(result);
-  const rows = isRowsResult(result.data)
-    ? { columns: result.data.columns, rows: result.data.rows }
-    : findObjectArray(result.data);
+  const rows = isRowsResult(result.output)
+    ? { columns: result.output.columns, rows: result.output.rows }
+    : findObjectArray(result.output);
   if (!rows) return formatAiResult(result);
   return [rows.columns, ...rows.rows].map((row) => row.map((value) => quoteDelimited(value, delimiter)).join(delimiter)).join("\n");
 }

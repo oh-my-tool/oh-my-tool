@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, rmSync } from "node:fs";
 import { discoverExtensions } from "../src/extension/discovery";
-import { createRegistry, resolveTool } from "../src/core/registry";
+import { ToolRegistry } from "../src/runtime/tool-registry";
+import type { ToolDescriptor } from "../src/runtime/provider";
 import { createFakeExtension } from "./helpers";
 
 let home: string;
@@ -34,7 +35,7 @@ describe("discoverExtensions", () => {
   });
 });
 
-describe("registry", () => {
+describe("runtime registry", () => {
   test("maps each tool name to its extension", () => {
     createFakeExtension(home, { id: "mysql", tools: [{ name: "mysql.query", description: "q" }] });
     createFakeExtension(home, {
@@ -42,14 +43,22 @@ describe("registry", () => {
       tools: [{ name: "redis.get", description: "g" }],
     });
     const installed = discoverExtensions(home);
-    const reg = createRegistry(installed);
-    expect(resolveTool(reg, "mysql.query").extension.id).toBe("mysql");
-    expect(resolveTool(reg, "redis.get").extension.id).toBe("redis");
+    const reg = new ToolRegistry();
+    reg.register(installed.flatMap((extension) => extension.manifest.tools.map((tool) => ({
+      id: tool.name,
+      description: tool.description,
+      risk: tool.risk ?? "read",
+      inputSchema: tool.inputSchema,
+      provider: { id: "native", kind: "native" },
+      source: { id: extension.id, kind: "extension", version: extension.version },
+    } satisfies ToolDescriptor))));
+    expect(reg.get("mysql.query")?.source.id).toBe("mysql");
+    expect(reg.get("redis.get")?.source.id).toBe("redis");
   });
 
   test("resolveTool throws on unknown tool", () => {
     createFakeExtension(home, { id: "mysql", tools: [{ name: "mysql.query", description: "q" }] });
-    const reg = createRegistry(discoverExtensions(home));
-    expect(() => resolveTool(reg, "mysql.nope")).toThrow(/unknown tool/i);
+    const reg = new ToolRegistry();
+    expect(reg.get("mysql.nope")).toBeUndefined();
   });
 });

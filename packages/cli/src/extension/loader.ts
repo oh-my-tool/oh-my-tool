@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import type { ExtensionDefinition } from "@oh-my-tool/sdk";
-import { OmtError } from "../core/registry";
+import { RuntimeError as OmtError } from "../runtime/errors";
 import type { InstalledExtension } from "./discovery";
 import { validateHandlers } from "./manifest";
 
