@@ -20,7 +20,7 @@ import {
   runConfigCheck,
 } from "../src/cli/commands";
 import { memoryStore } from "../src/secrets/secrets";
-import { homeDir } from "../src/cli/context";
+import { createRuntime, homeDir } from "../src/cli/context";
 import { parseArgs, parseMcpCommand } from "../src/cli/parseArgs";
 
 let home: string;
@@ -50,6 +50,16 @@ describe("cli commands", () => {
     expect(out.tools[0].name).toBe("mysql.query");
     expect(out.tools[0]).not.toHaveProperty("inputSchema");
     expect(out.meta).toEqual({ unavailableProviders: [] });
+  });
+
+  test("does not validate unrelated native connections for an MCP target", async () => {
+    writeFileSync(join(home, "config.toml"), "[extensions.mysql.connections.prod.settings]\nport=\"3306\"\n[mcp.servers.company]\nenabled=false\n", "utf8");
+    createFakeExtension(home, {
+      id: "mysql",
+      connectionSchema: { type: "object", properties: { port: { type: "integer" } } },
+    });
+    const runtime = await createRuntime({ targetTool: "company.logs" });
+    await runtime.close();
   });
 
   test("describe returns the tool schema", async () => {

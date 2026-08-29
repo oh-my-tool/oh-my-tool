@@ -213,9 +213,11 @@ export function sanitizeExtensionConnections(cfg: Config): Record<string, Record
 export function validateConfiguredConnections(
   cfg: Config,
   installedExtensions: readonly InstalledExtension[],
+  targetExtensionId?: string,
 ): void {
   const manifests = new Map(installedExtensions.map((extension) => [extension.id, extension.manifest]));
   for (const [extensionId, extension] of Object.entries(cfg.extensions)) {
+    if (targetExtensionId !== undefined && targetExtensionId !== extensionId) continue;
     const schema = manifests.get(extensionId)?.connectionSchema;
     if (schema === undefined) continue;
     for (const [name, connection] of Object.entries(extension.connections)) {

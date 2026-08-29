@@ -24,8 +24,13 @@ export async function createRuntime(options: RuntimeOptions = {}) {
   const secrets = new SecretsManager();
   const extensionConnections = sanitizeExtensionConnections(config);
   const nativeProvider = new NativeExtensionProvider(paths);
-  validateConfiguredConnections(config, nativeProvider.installedExtensions());
-  const nativeTarget = options.targetTool !== undefined && await nativeProvider.hasTool(options.targetTool);
+  const nativeTargetExtension = options.targetTool === undefined
+    ? undefined
+    : nativeProvider.extensionForTool(options.targetTool);
+  if (nativeTargetExtension !== undefined) {
+    validateConfiguredConnections(config, nativeProvider.installedExtensions(), nativeTargetExtension);
+  }
+  const nativeTarget = nativeTargetExtension !== undefined;
   const mcpProviders = options.includeMcp === false || nativeTarget ? [] : Object.entries(config.mcp.servers)
     .sort(([a], [b]) => a.localeCompare(b))
     .filter((entry): entry is [string, McpEnabledServerConfig] => entry[1].enabled)

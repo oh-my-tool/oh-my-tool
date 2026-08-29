@@ -97,6 +97,17 @@ describe("config", () => {
     }] as any)).toThrow(/brokers/);
   });
 
+  test("can validate only the targeted extension", () => {
+    writeFileSync(join(home, "config.toml"), `[extensions.mysql.connections.prod.settings]\nport = "3306"\n[extensions.kafka.connections.prod.settings]\nbrokers = ["kafka:9092"]\n`, "utf8");
+    const cfg = loadConfig(home);
+    const extensions = [
+      { id: "mysql", manifest: { connectionSchema: { type: "object", properties: { port: { type: "integer" } } } } },
+      { id: "kafka", manifest: { connectionSchema: { type: "object", required: ["brokers"], properties: { brokers: { type: "array" } } } } },
+    ];
+    expect(() => validateConfiguredConnections(cfg, extensions as any, "kafka")).not.toThrow();
+    expect(() => validateConfiguredConnections(cfg, extensions as any, "mysql")).toThrow(/port/);
+  });
+
   test("loads an MCP stdio server definition", () => {
     writeFileSync(
       join(home, "config.toml"),
