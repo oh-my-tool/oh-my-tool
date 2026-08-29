@@ -60,6 +60,10 @@ export class NativeExtensionProvider implements ToolProvider {
     return this.getSnapshot().routes.has(toolId);
   }
 
+  installedExtensions(): readonly InstalledExtension[] {
+    return this.getSnapshot().extensions;
+  }
+
   private getSnapshot(): { extensions: InstalledExtension[]; routes: Map<string, InstalledExtension> } {
     if (this.snapshot) return this.snapshot;
     const extensions = this.discover(this.home());

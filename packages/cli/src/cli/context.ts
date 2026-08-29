@@ -1,6 +1,6 @@
 import { createPaths } from "../paths";
 import { prepareHome } from "../migration";
-import { loadConfig, getConnectionConfig, sanitizeExtensionConnections, type McpEnabledServerConfig } from "../config/config";
+import { loadConfig, getConnectionConfig, sanitizeExtensionConnections, validateConfiguredConnections, type McpEnabledServerConfig } from "../config/config";
 import { SecretsManager } from "../secrets/secrets";
 import { applyLimits, validateConnectionInput } from "../policy/policy";
 import { NativeExtensionProvider } from "../runtime/providers/native/provider";
@@ -24,6 +24,7 @@ export async function createRuntime(options: RuntimeOptions = {}) {
   const secrets = new SecretsManager();
   const extensionConnections = sanitizeExtensionConnections(config);
   const nativeProvider = new NativeExtensionProvider(paths);
+  validateConfiguredConnections(config, nativeProvider.installedExtensions());
   const nativeTarget = options.targetTool !== undefined && await nativeProvider.hasTool(options.targetTool);
   const mcpProviders = options.includeMcp === false || nativeTarget ? [] : Object.entries(config.mcp.servers)
     .sort(([a], [b]) => a.localeCompare(b))
