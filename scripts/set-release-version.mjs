@@ -13,6 +13,10 @@ function updatePackage(relativePath, update) {
   writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 }
 
+updatePackage("package.json", (pkg) => {
+  pkg.version = version;
+});
+
 updatePackage("packages/sdk/package.json", (pkg) => {
   pkg.version = version;
 });
@@ -28,4 +32,4 @@ writeFileSync(
   "utf8",
 );
 
-console.log(`Prepared @oh-my-tool/sdk and @oh-my-tool/cli ${version}`);
+console.log(`Prepared oh-my-tool, @oh-my-tool/sdk, and @oh-my-tool/cli ${version}`);

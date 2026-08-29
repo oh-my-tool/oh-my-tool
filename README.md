@@ -141,12 +141,16 @@ The runtime owns only the generic connection mechanism. Concrete connection sect
 ```toml
 [extensions.<extension-id>.connections.<name>]
 environment = "test"
+
+[extensions.<extension-id>.connections.<name>.settings]
 host = "127.0.0.1"
 port = 1234
 database = "default"
 username = "user"
-secret = "provider:name"
 tls = false
+
+[extensions.<extension-id>.connections.<name>.secrets]
+password = "provider:name"
 ```
 
 See the extension repository documentation for provider-specific fields and examples.

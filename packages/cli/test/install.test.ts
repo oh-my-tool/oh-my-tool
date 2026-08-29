@@ -14,7 +14,7 @@ beforeEach(() => {
   home = join(tmpdir(), `omt-home-${Date.now()}-${Math.random()}`);
   mkdirSync(join(src, "src"), { recursive: true });
   mkdirSync(home, { recursive: true });
-  writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "mysql", name: "MySQL", version: "0.2.0", sdkVersion: "^0.1.0", description: "d", tools: [{ name: "mysql.query", description: "q" }] }), "utf8");
+  writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "mysql", name: "MySQL", version: "0.2.0", sdkVersion: "^0.2.0", description: "d", tools: [{ name: "mysql.query", description: "q" }] }), "utf8");
   writeFileSync(join(src, "package.json"), JSON.stringify({ name: "@oh-my-tool/mysql", version: "0.2.0", type: "module", omt: { entry: "./src/index.ts" } }), "utf8");
   writeFileSync(join(src, "src", "index.ts"), "export default { handlers: { \"mysql.query\": async () => ({ data: [] }) } };", "utf8");
 });

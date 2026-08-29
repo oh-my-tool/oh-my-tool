@@ -2,7 +2,7 @@
   "id": "test",
   "name": "Test Echo",
   "version": "0.1.0",
-  "sdkVersion": "^0.1.0",
+  "sdkVersion": "^0.2.0",
   "description": "Deterministic echo fixture for runtime integration gates",
   "keywords": ["test", "echo"],
   "tools": [

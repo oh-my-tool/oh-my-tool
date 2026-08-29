@@ -3,7 +3,7 @@
 This document is the product and architecture direction for Oh My Tool. It is
 organized around outcomes and exit criteria rather than fixed dates.
 
-## Now — v0.2 Provider-independent Tool Runtime
+## Released — v0.2 Provider-independent Tool Runtime
 
 Goal: provide a local-first runtime that lets agents discover and execute tools
 through a stable CLI and provider contract.
@@ -27,7 +27,7 @@ Non-goals:
 Exit criteria: agents can use `ohmytool search`, `ohmytool describe`, and
 `ohmytool run` without depending on a concrete database or cache implementation.
 
-## Now — v0.3 MCP Provider Integration (in progress)
+## Released — v0.3 MCP Provider Integration
 
 Goal: allow OMT to consume existing MCP servers as first-class `ToolProvider`s.
 
@@ -53,9 +53,8 @@ Non-goals:
 - GUI or workflow orchestration
 
 Exit criteria: `ohmytool search`, `ohmytool describe`, and `ohmytool run` work
-the same way for native and MCP-backed tools. The implementation is tracked in
-[`docs/superpowers/plans/2026-08-23-omt-v03-mcp-provider-integration.md`](superpowers/plans/2026-08-23-omt-v03-mcp-provider-integration.md);
-this section changes to released only after the final release gates pass.
+the same way for native and MCP-backed tools. These capabilities are released in
+v0.3.3; subsequent hardening and provider additions are tracked separately.
 
 ## Planned — v0.4 Governance Foundation
 

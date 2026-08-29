@@ -274,17 +274,17 @@ export function createIntegrationManager(options: IntegrationManagerOptions) {
       const recorded = records[agent.id];
       if (!recorded) {
         if (!pathPresent(agent.target)) {
-          return result(agent, "not-installed", "not installed; run `omt integrate` to install");
+          return result(agent, "not-installed", "not installed; run `ohmytool integrate` to install");
         }
         return result(agent, "conflict", "target exists but is not managed by OMT");
       }
       try {
         assertSafeManagedState(agent, recorded, options.omtHome, platform);
       } catch {
-        return result(agent, "conflict", "recorded state is unsafe; run `omt integrate repair`");
+        return result(agent, "conflict", "recorded state is unsafe; run `ohmytool integrate repair`");
       }
       if (!pathPresent(agent.target) || !safeRealpath(agent.target)) {
-        return result(agent, "broken", "link is missing; run `omt integrate repair`");
+        return result(agent, "broken", "link is missing; run `ohmytool integrate repair`");
       }
       if (!isManagedLink(agent.target, recorded.canonical)) {
         return result(agent, "conflict", "target was replaced by unmanaged content");
@@ -292,7 +292,7 @@ export function createIntegrationManager(options: IntegrationManagerOptions) {
       if (recorded.version === options.skillVersion) {
         return result(agent, "current");
       }
-      return result(agent, "update-available", `new version ${options.skillVersion} available; run \`omt integrate\``);
+      return result(agent, "update-available", `new version ${options.skillVersion} available; run \`ohmytool integrate\``);
     });
   }
 

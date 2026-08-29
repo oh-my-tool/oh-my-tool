@@ -186,10 +186,10 @@ function printStatus(results: IntegrationResult[]): void {
   const summary = Object.entries(counts).map(([status, n]) => `${n} ${status}`).join("  ·  ");
   console.log(`\nSummary: ${summary}`);
   if (results.some((item) => item.status === "broken")) {
-    console.log("Tip:   run `omt integrate repair` to recreate broken links");
+    console.log("Tip:   run `ohmytool integrate repair` to recreate broken links");
   }
   if (results.some((item) => item.status === "conflict")) {
-    console.log("Tip:   conflict means OMT refuses to touch an unmanaged path; run `omt integrate --force` only if you accept replacing it");
+    console.log("Tip:   conflict means OMT refuses to touch an unmanaged path; run `ohmytool integrate --force` only if you accept replacing it");
   }
 }
 
@@ -252,7 +252,7 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
           return 1;
         }
         const result = action === "list" ? await runConnectionList() : await runConnectionCheck();
-        const wrapped = { ok: true as const, tool: `connection.${action}`, data: result, meta: {} };
+        const wrapped = { ok: true as const, toolId: `connection.${action}`, output: result, meta: {} };
         console.log(formatOutput(wrapped, outputFormat(parsed)));
         return 0;
       }
@@ -262,7 +262,7 @@ export async function main(argv: string[], dependencies: CliDependencies = defau
           return 1;
         }
         const result = await runConfigCheck();
-        const wrapped = { ok: true as const, tool: "config.check", data: result, meta: {} };
+        const wrapped = { ok: true as const, toolId: "config.check", output: result, meta: {} };
         console.log(formatOutput(wrapped, outputFormat(parsed)));
         return 0;
       }

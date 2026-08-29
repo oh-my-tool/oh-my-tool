@@ -12,12 +12,16 @@ Generic shape:
 ```toml
 [extensions.<extension-id>.connections.<name>]
 environment = "test"
+
+[extensions.<extension-id>.connections.<name>.settings]
 host = "127.0.0.1"
 port = 1234
 database = "default"
 username = "user"
-secret = "provider:name"
 tls = false
+
+[extensions.<extension-id>.connections.<name>.secrets]
+password = "provider:name"
 ```
 
 Agents pass only the configured connection name:
@@ -36,8 +40,8 @@ ohmytool config check
 ```
 
 `connection list` lists connections for every configured extension. `connection check`
-invokes the conventional `<extension-id>.ping` tool when that extension provides one;
-extensions without a ping tool are reported as `CHECK_UNSUPPORTED`.
+invokes the extension-declared connection check tool; extensions without one are
+reported as `CHECK_UNSUPPORTED`.
 
 Passwords are stored separately:
 
@@ -49,12 +53,13 @@ Do not commit real connection files or secrets. See the individual extension REA
 
 ## MCP servers (v0.3)
 
-Enabled MCP servers are discovered during runtime initialization. Native
+Enabled MCP servers are discovered lazily when a command needs them. Native
 manifests remain local and static; MCP discovery connects to each enabled
 server and calls `tools/list`. MCP tools are exposed as `<namespace>.<remote-name>`.
 Set `enabled = false` to temporarily exclude a server. If an enabled server is
-unavailable, runtime initialization fails. Disabled entries are checked only
-for valid server IDs, so stale transport-specific fields cannot block startup.
+unavailable, native tools and other MCP providers remain usable; search reports
+unavailable providers in its metadata. Disabled entries are checked only for valid
+server IDs, so stale transport-specific fields cannot block startup.
 
 ### stdio
 
