@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { cp as cpAsync } from "node:fs/promises";
-import { installLocalExtension, installNpmExtension, normalizeNpmExtensionSpec } from "../src/extension/install";
+import { installLocalExtension, installNpmExtension, normalizeNpmExtensionSpec, npmExecutableForPlatform, npmShellForPlatform } from "../src/extension/install";
 import { discoverExtensions } from "../src/extension/discovery";
 import { ManifestError } from "../src/extension/manifest";
 
@@ -76,6 +76,37 @@ describe("normalizeNpmExtensionSpec", () => {
 });
 
 describe("installNpmExtension", () => {
+  test("uses the Windows npm command shim when selecting the executable", () => {
+    expect(npmExecutableForPlatform("win32")).toBe("npm.cmd");
+    expect(npmExecutableForPlatform("linux")).toBe("npm");
+    expect(npmShellForPlatform("win32")).toBe(true);
+    expect(npmShellForPlatform("linux")).toBe(false);
+  });
+
+  test("preserves the underlying npm failure message", async () => {
+    await expect(installNpmExtension(home, "mysql@0.2.0", {
+      install: async () => {
+        throw new Error("npm registry is unavailable");
+      },
+    })).rejects.toThrow(/npm registry is unavailable/);
+  });
+
+  test("runs the default npm installer with a safe relative prefix", async () => {
+    let invocation: { file: string; args: string[]; options: { cwd?: string; shell?: boolean } } | undefined;
+    await installNpmExtension(home, "mysql@0.2.0", {
+      execFile: async (file: string, args: string[], options: { cwd?: string; shell?: boolean }) => {
+        invocation = { file, args, options };
+        await cpAsync(src, join(options.cwd!, "node_modules", "@oh-my-tool", "mysql"), { recursive: true });
+      },
+    } as any);
+    expect(invocation).toMatchObject({
+      file: npmExecutableForPlatform(),
+      options: { cwd: expect.any(String), shell: npmShellForPlatform() },
+    });
+    expect(invocation!.args).toContain("--prefix");
+    expect(invocation!.args[invocation!.args.indexOf("--prefix") + 1]).toBe(".");
+  });
+
   test("validates and activates the package returned by npm", async () => {
     await installNpmExtension(home, "mysql@0.2.0", {
       install: async (_spec, tempDir) => {

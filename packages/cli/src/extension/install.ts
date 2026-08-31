@@ -24,8 +24,21 @@ export interface NpmExtensionSpec {
 
 export class ExtensionInstallError extends Error {}
 
+export function npmExecutableForPlatform(platform: string = process.platform): string {
+  return platform === "win32" ? "npm.cmd" : "npm";
+}
+
+export function npmShellForPlatform(platform: string = process.platform): boolean {
+  return platform === "win32";
+}
+
 export interface NpmInstallDependencies {
   install(spec: string, tempDir: string): Promise<void>;
+  execFile?(
+    file: string,
+    args: string[],
+    options: { cwd: string; shell: boolean; timeout: number; maxBuffer: number },
+  ): Promise<unknown>;
 }
 
 export function normalizeNpmExtensionSpec(spec: string): NpmExtensionSpec {
@@ -95,19 +108,23 @@ export async function installNpmExtension(
       if (dependencies.install !== undefined) {
         await dependencies.install(normalized.npmSpec, temp);
       } else {
-        await execFile("npm", [
+        const runNpm: NonNullable<NpmInstallDependencies["execFile"]> = dependencies.execFile ?? (async (file, args, options) => {
+          await execFile(file, args, options);
+        });
+        await runNpm(npmExecutableForPlatform(), [
           "install",
-          "--prefix", temp,
+          "--prefix", ".",
           "--ignore-scripts",
           "--no-save",
           "--no-package-lock",
           "--omit=dev",
           "--registry=https://registry.npmjs.org",
           "--", normalized.npmSpec,
-        ], { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
+        ], { cwd: temp, timeout: 120_000, maxBuffer: 4 * 1024 * 1024, shell: npmShellForPlatform() });
       }
-    } catch {
-      throw new ExtensionInstallError(`failed to download npm extension '${normalized.npmSpec}'`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ExtensionInstallError(`failed to download npm extension '${normalized.npmSpec}': ${message}`);
     }
 
     const packageDir = join(temp, "node_modules", ...normalized.packageName.split("/"));
