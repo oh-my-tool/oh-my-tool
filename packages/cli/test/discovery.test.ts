@@ -33,6 +33,16 @@ describe("discoverExtensions", () => {
   test("returns empty when no extensions dir exists", () => {
     expect(discoverExtensions(home)).toEqual([]);
   });
+
+  test("activates only the highest compatible version of an extension", () => {
+    createFakeExtension(home, { id: "mysql", version: "0.2.0" });
+    createFakeExtension(home, { id: "mysql", version: "0.10.0" });
+
+    const found = discoverExtensions(home);
+
+    expect(found).toHaveLength(1);
+    expect(found[0].version).toBe("0.10.0");
+  });
 });
 
 describe("runtime registry", () => {

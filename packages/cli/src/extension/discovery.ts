@@ -37,6 +37,7 @@ export function discoverExtensions(home: string): InstalledExtension[] {
   for (const id of readdirSync(root)) {
     const idDir = join(root, id);
     if (!statSync(idDir).isDirectory()) continue;
+    const candidates: InstalledExtension[] = [];
     for (const version of readdirSync(idDir)) {
       const versionDir = join(idDir, version);
       if (!statSync(versionDir).isDirectory()) continue;
@@ -46,7 +47,7 @@ export function discoverExtensions(home: string): InstalledExtension[] {
         const manifest = parseManifest(readFileSync(manifestPath, "utf8"));
         validateManifest(manifest);
         checkSdkCompatibility(manifest.sdkVersion);
-        out.push({
+        candidates.push({
           id,
           version,
           dir: versionDir,
@@ -57,6 +58,13 @@ export function discoverExtensions(home: string): InstalledExtension[] {
         // skip invalid or incompatible manifests
       }
     }
+    const active = candidates.reduce<InstalledExtension | undefined>((current, candidate) => {
+      if (current === undefined || Bun.semver.order(candidate.manifest.version, current.manifest.version) > 0) {
+        return candidate;
+      }
+      return current;
+    }, undefined);
+    if (active !== undefined) out.push(active);
   }
   return out;
 }

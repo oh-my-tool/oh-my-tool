@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
@@ -88,7 +88,37 @@ async function installExtensionDirectory(home: string, srcDir: string, expectedP
     force: true,
     filter: (s: string) => basename(s) !== "node_modules",
   });
+  await retireInactiveVersions(home, manifest.id, manifest.version);
   return { id: manifest.id, version: manifest.version, target };
+}
+
+async function retireInactiveVersions(home: string, id: string, activeVersion: string): Promise<void> {
+  const extensionRoot = join(home, "extensions", id);
+  let entries: string[];
+  try {
+    entries = await readdir(extensionRoot);
+  } catch (error) {
+    if (isMissingPathError(error)) return;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ExtensionInstallError(`failed to inspect installed versions for '${id}': ${message}`);
+  }
+
+  for (const entry of entries) {
+    if (entry === activeVersion || !EXACT_VERSION_RE.test(entry)) continue;
+    const entryPath = join(extensionRoot, entry);
+    try {
+      if ((await stat(entryPath)).isDirectory()) {
+        await rm(entryPath, { recursive: true, force: true });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ExtensionInstallError(`failed to retire inactive extension '${id}/${entry}': ${message}`);
+    }
+  }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 export async function installLocalExtension(home: string, srcDir: string): Promise<InstalledRef> {

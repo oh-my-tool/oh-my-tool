@@ -52,6 +52,20 @@ describe("installLocalExtension", () => {
     expect(readFileSync(installedPath, "utf8")).toContain("v: 2");
   });
 
+  test("installing a newer version retires the previous active version", async () => {
+    await installLocalExtension(home, src);
+    writeFileSync(
+      join(src, "omt.manifest.json"),
+      JSON.stringify({ id: "mysql", name: "MySQL", version: "0.3.0", sdkVersion: "^0.2.0", description: "d", tools: [{ name: "mysql.query", description: "q" }] }),
+      "utf8",
+    );
+
+    await installLocalExtension(home, src);
+
+    expect(existsSync(join(home, "extensions", "mysql", "0.2.0"))).toBe(false);
+    expect(discoverExtensions(home).map((extension) => extension.version)).toEqual(["0.3.0"]);
+  });
+
   test("rejects an extension whose sdkVersion is incompatible", async () => {
     writeFileSync(join(src, "omt.manifest.json"), JSON.stringify({ id: "mysql", name: "MySQL", version: "0.2.0", sdkVersion: "^99.0.0", description: "d", tools: [{ name: "mysql.query", description: "q" }] }), "utf8");
     await expect(installLocalExtension(home, src)).rejects.toThrow(ManifestError);

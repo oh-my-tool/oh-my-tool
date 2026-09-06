@@ -77,7 +77,7 @@ class ToolRuntime {
 }
 ```
 
-Tool IDs remain the existing manifest names such as `mysql.query` and `redis.get`. Native descriptors use `{ id: extensionId, kind: "native" }` as provider metadata. The registry rejects duplicate IDs with `DUPLICATE_TOOL_ID` before serving commands.
+Tool IDs remain the existing manifest names such as `mysql.query` and `redis.get`. Native descriptors use `{ id: "native", kind: "native" }` as provider metadata; the concrete extension identity is carried separately in `source: { id: extensionId, kind: "extension" }`. The registry rejects duplicate IDs with `DUPLICATE_TOOL_ID` before serving commands.
 
 ## Execution and security
 
@@ -94,6 +94,8 @@ Search and describe must not dynamically import extension handlers, read secrets
 
 The implementation is incremental. Existing tests establish a baseline first. Core modules are moved or re-exported into `runtime` without changing behavior, then the runtime facade and provider contracts are introduced. CLI commands delegate to the facade, and old command-specific wiring is removed only after equivalent tests pass. Extension manifests and SDK types remain compatible with the independent MySQL and Redis repositories.
 
+`OMT_API_VERSION` is currently a strict semver compatibility gate: an extension's declared `sdkVersion` range must include the core API version. Under this policy, every API version bump—including additive changes—requires compatible extensions to update their declared range; discovery skips manifests whose range does not match. Supporting additive-only changes without a manifest bump would require explicit member/capability versioning and is outside this runtime slice.
+
 ## Testing and gates
 
 Each behavior change is introduced with a failing Bun test first. Required gates are:
@@ -106,4 +108,3 @@ Each behavior change is introduced with a failing Bun test first. Required gates
 - policy runs before secret access;
 - fake native provider tests cover list, describe, and execute;
 - `omt-mysql` and `omt-redis` install/manifest compatibility remains green.
-
